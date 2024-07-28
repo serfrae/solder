@@ -1,0 +1,35 @@
+[package]
+name = "solder"
+authors = ["Andrew Fraser <a@serfrae.com>"]
+description = "Solana validator data aggregator"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.86"
+async-trait = "0.1.81"
+axum = "0.7.5"
+bb8 = "0.8.5"
+bb8-postgres = "0.8.1"
+crossbeam = "0.8.4"
+log = "0.4.22"
+pretty_env_logger = "0.5.0"
+serde = "1.0.204"
+serde_json = "1.0.120"
+serde_toml = "0.0.1"
+solana-client = "2.0.3"
+solana-sdk = "2.0.3"
+solana-transaction-status = "2.0.3"
+thiserror = "1.0.63"
+tokio = { version = "1.39.1", features = ["full"] }
+tokio-postgres = "0.7.11"
+toml = "0.8.16"
+tower-http = { version = "0.5.2", features = ["cors"] }
+
+[lib]
+name = "solder"
+path = "src/lib.rs"
+
+[[bin]]
+name = "solder"
+path = "src/main.rs"
