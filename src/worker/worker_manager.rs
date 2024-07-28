@@ -4,13 +4,23 @@ use async_trait::async_trait;
 use serde::Deserialize;
 use std::time::Duration;
 
+pub enum WorkerMode {
+	Pool,
+	Scale,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct WorkerManagerConfig {
+	pub mode: WorkerMode,
+	pub scale_config: Option<WorkerScalingConfig>,
+}
+
+pub struct WorkerScalingConfig {
+	pub scale_up_threshold: usize,
+	pub scale_down_threshold: usize,
 	pub min_workers: usize,
 	pub max_workers: usize,
 	pub interval: Duration,
-	pub scale_up_threshold: usize,
-	pub scale_down_threshold: usize,
 }
 
 #[async_trait]

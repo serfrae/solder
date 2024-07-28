@@ -1,3 +1,3 @@
-pub mod manager;
+pub mod conn_pool;
 
-pub use manager::DatabaseManager;
+pub use conn_pool::DatabasePool;

@@ -34,7 +34,16 @@ impl WorkerHandle {
 	}
 
 	pub async fn shutdown(self) -> Result<()> {
-		let _ = self.shutdown_tx.send(()).await;
-		self.join_handle.await?
+		if let Err(e) = self.shutdown_tx.send(()).await {
+			log::error!("Failed to send shutdown signal: {}", e);
+		}
+
+		match self.join_handle.await {
+			Ok(result) => result,
+			Err(e) => {
+				log::error!("Worked task failed: {}", e);
+				Err(e.into())
+			}
+		}
 	}
 }

@@ -1,77 +1,95 @@
 use crate::error::{AppError, Result};
 use serde::{Deserialize, Serialize};
-use solana_sdk::{pubkey::Pubkey, signature::Signature};
-use std::fmt;
-use std::str::FromStr;
+use solana_transaction_status::{EncodedTransactionWithStatusMeta, UiTransactionTokenBalance};
 
-#[derive(Debug, Serialize, Deserialize)]
-pub enum TokenType {
-	SOL,
-	Token,
-}
+pub type RawTransaction = EncodedTransactionWithStatusMeta;
+pub type RawTokenBalance = UiTransactionTokenBalance;
+pub type ProcessedTransactions = Vec<ProcessedTransaction>;
+pub type TokenBalances = Vec<TokenBalance>;
 
-impl fmt::Display for TokenType {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		let s = match self {
-			TokenType::SOL => "SOL",
-			TokenType::Token => "Token",
-		};
-		write!(f, "{}", s)
-	}
-}
-
-impl FromStr for TokenType {
-	fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-		match s {
-			"SOL" => Ok(TokenType::SOL),
-			"Token" => Ok(TokenType::Token),
-			_ => Err(AppError::ParseTokenType),
-		}
-	}
-
-	type Err = AppError;
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TransactionRaw {
+pub struct TransactionWithSig {
 	pub signature: String,
-	pub slot: i64,
-	pub account_from: String,
-	pub account_to: String,
-	pub amount: i64,
-	pub token_type: String,
+	pub transaction: RawTransaction,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Transaction {
-	pub signature: Signature,
-	pub slot: u64,
-	pub account_from: Pubkey,
-	pub account_to: Pubkey,
-	pub amount: u64,
-	pub token_type: TokenType,
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ProcessedTransaction {
+	signature: String,
+	fee: i64,
+	pre_balances: Vec<i64>,
+	post_balances: Vec<i64>,
+	pre_token_balances: TokenBalances,
+	post_token_balances: TokenBalances,
 }
 
-impl Transaction {
-	pub fn to_row(&self) -> (String, i64, String, String, i64, String) {
-		(
-			self.signature.to_string(),
-			self.slot as i64,
-			self.account_from.to_string(),
-			self.account_to.to_string(),
-			self.amount as i64,
-			self.token_type.to_string(),
-		)
-	}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TokenBalance {
+	mint: String,
+	amount: i64,
+	decimals: i64,
+	owner: String,
+	program_id: String,
+}
 
-	pub fn from_row(row: &tokio_postgres::Row) -> Result<Self> {
+impl TryFrom<TransactionWithSig> for ProcessedTransaction {
+	type Error = AppError;
+
+	fn try_from(value: TransactionWithSig) -> Result<Self> {
+		let TransactionWithSig {
+			transaction,
+			signature,
+		} = value;
+
+		let meta = transaction.meta.ok_or(AppError::NoData);
+
+		let pre_token_balances: TokenBalances = meta
+			.pre_token_balances
+			.ok_or(AppError::NoData)?
+			.iter()
+			.map(TokenBalance::from)
+			.collect();
+
+		if pre_token_balances.is_empty() {
+			return Err(AppError::NoData);
+		}
+
+		let post_token_balances: TokenBalances = meta
+			.post_token_balances
+			.ok_or(AppError::NoData)?
+			.iter()
+			.map(TokenBalance::from)
+			.collect();
+
+		if post_token_balances.is_empty() {
+			return Err(AppError::NoData);
+		}
+
 		Ok(Self {
-			signature: Signature::from_str(row.get("signature"))?,
-			slot: row.get::<_, i64>("slot") as u64,
-			account_from: Pubkey::from_str(row.get("account_from"))?,
-			account_to: Pubkey::from_str(row.get("account_to"))?,
-			amount: row.get::<_, i64>("amount") as u64,
-			token_type: TokenType::from_str(row.get("token_type"))?,
+			signature,
+			fee: meta.fee,
+			pre_balances: transaction.meta.pre_balances,
+			post_balances: transaction.meta.post_balances,
+			pre_token_balances,
+			post_token_balances,
 		})
+	}
+}
+
+impl From<RawTokenBalance> for TokenBalance {
+	fn from(value: RawTokenBalance) -> Self {
+		let decimals = value.ui_token_amount.decimals as i64;
+		let amount = if let Some(amount) = value.ui_token_amount.amount {
+			amount * 10_usize.pow(decimals)
+		} else {
+			0
+		} as i64;
+
+		Self {
+			mint: value.mint,
+			owner: value.owner,
+			amount,
+			decimals,
+			program_id: value.program_id,
+		}
 	}
 }

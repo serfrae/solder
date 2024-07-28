@@ -1,5 +1,9 @@
+pub mod block;
+pub mod log;
 pub mod transaction;
 
-pub use transaction::{Transaction, TransactionRaw, TokenType};
+pub use block::*;
+pub use log::*;
+pub use transaction::*;
 
-pub type Logs = solana_client::rpc_response::Response<solana_client::rpc_response::RpcLogsResponse>;
+pub type ProcessedBlockAndTransactions = (ProcessedBlock, ProcessedTransactions);

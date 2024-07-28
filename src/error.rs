@@ -2,6 +2,12 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum AppError {
+	#[error("Could not process block data")]
+	BlockProcessingError,
+
+	#[error("No data")]
+	NoData,
+
 	#[error("Send channel error")]
 	SendChannelError,
 
