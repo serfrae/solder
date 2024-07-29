@@ -14,10 +14,28 @@ pub struct Config {
 	pub client: ClientConfig,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct ClientConfig {
 	pub url: String,
 	pub api_key: String,
+}
+
+impl ClientConfig {
+	pub fn get_ws_url(&self) -> String {
+		if !self.api_key.is_empty() {
+			format!("wss://{}/?api-key={}", self.url, self.api_key)
+		} else {
+			format!("wss://{}/", self.url)
+		}
+	}
+
+	pub fn get_url(&self) -> String {
+		if !self.api_key.is_empty() {
+			format!("https://{}/?api-key={}", self.url, self.api_key)
+		} else {
+			format!("https://{}/", self.url)
+		}
+	}
 }
 
 #[derive(Debug, Deserialize)]

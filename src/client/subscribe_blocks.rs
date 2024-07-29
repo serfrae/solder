@@ -3,18 +3,21 @@ use crate::{config::ClientConfig, error::Result, models::RawBlock};
 use crossbeam_channel::Receiver;
 use log::info;
 use solana_client::{
-	pubsub_client::PubsubClient,
+	pubsub_client::{BlockSubscription, PubsubClient, PubsubClientSubscription},
 	rpc_config::{RpcBlockSubscribeConfig, RpcBlockSubscribeFilter},
 };
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_transaction_status::{TransactionDetails, UiTransactionEncoding};
 
-pub struct BlockSubscription;
-
 impl Subscribable for BlockSubscription {
 	type Output = RawBlock;
 
-	fn subscribe(config: &ClientConfig) -> Result<(Self, Receiver<Self::Output>)> {
+	fn subscribe(
+		config: &ClientConfig,
+	) -> Result<(
+		PubsubClientSubscription<Self::Output>,
+		Receiver<Self::Output>,
+	)> {
 		let url = if !config.api_key.is_empty() {
 			format!("{}?api-key={}", config.url, config.api_key)
 		} else {
@@ -36,6 +39,6 @@ impl Subscribable for BlockSubscription {
 			PubsubClient::block_subscribe(url.as_str(), block_filter, Some(block_config))?;
 		info!("Subscribed to blocks");
 
-		Ok((BlockSubscription, rx))
+		Ok((_subscription, rx))
 	}
 }

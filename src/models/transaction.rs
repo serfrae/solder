@@ -13,8 +13,13 @@ pub struct TransactionWithSig {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ProcessedTransaction {
+pub struct ProcessedTransactionWithSig {
 	signature: String,
+	transaction: ProcessedTransaction,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ProcessedTransaction {
 	fee: i64,
 	pre_balances: Vec<i64>,
 	post_balances: Vec<i64>,
@@ -31,16 +36,10 @@ pub struct TokenBalance {
 	program_id: String,
 }
 
-impl TryFrom<TransactionWithSig> for ProcessedTransaction {
+impl TryFrom<RawTransaction> for ProcessedTransaction {
 	type Error = AppError;
-
-	fn try_from(value: TransactionWithSig) -> Result<Self> {
-		let TransactionWithSig {
-			transaction,
-			signature,
-		} = value;
-
-		let meta = transaction.meta.ok_or(AppError::NoData)?;
+	fn try_from(value: RawTransaction) -> Result<Self> {
+		let meta = value.meta.ok_or(AppError::NoData)?;
 
 		let pre_token_balances: TokenBalances = meta
 			.pre_token_balances
@@ -68,12 +67,29 @@ impl TryFrom<TransactionWithSig> for ProcessedTransaction {
 		let post_balances = meta.post_balances.into_iter().map(|x| x as i64).collect();
 
 		Ok(Self {
-			signature,
 			fee: meta.fee as i64,
 			pre_balances,
 			post_balances,
 			pre_token_balances,
 			post_token_balances,
+		})
+	}
+}
+
+impl TryFrom<TransactionWithSig> for ProcessedTransactionWithSig {
+	type Error = AppError;
+
+	fn try_from(value: TransactionWithSig) -> Result<Self> {
+		let TransactionWithSig {
+			transaction,
+			signature,
+		} = value;
+
+		let processed_transaction = ProcessedTransaction::try_from(transaction)?;
+
+		Ok(Self {
+			signature,
+			transaction: processed_transaction, 
 		})
 	}
 }

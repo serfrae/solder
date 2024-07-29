@@ -1,13 +1,15 @@
 use crossbeam::queue::SegQueue;
 use log::info;
+use solana_transaction_status::EncodedConfirmedBlock;
+use solana_client::{rpc_response::SlotInfo, pubsub_client::SlotsSubscription};
 use solder::{
 	config::load_config,
 	database::create_database_pool,
 	error::Result,
-	models::{ProcessedBlockAndTransactions, RawBlock, ProcessedTransactionLogs, RawTransactionLogs},
+	models::ProcessedBlockAndTransactions,
 	processor::ProcessingWorkerManager,
 	storage::StorageWorkerManager,
-	websocket::{client::Client, subscribe_blocks::BlockSubscription, subscribe_logs::TransactionLogsSubscription},
+	client::ws::WsClient,
 };
 use std::sync::Arc;
 
@@ -18,11 +20,11 @@ async fn main() -> Result<()> {
 	let config = load_config("Config.toml")?;
 	info!("Read config");
 	let proc_config = config.processor.to();
-	let processing_queue = Arc::new(SegQueue::<RawTransactionLogs>::new());
-	let storage_queue = Arc::new(SegQueue::<ProcessedTransactionLogs>::new());
+	let processing_queue = Arc::new(SegQueue::<EncodedConfirmedBlock>::new());
+	let storage_queue = Arc::new(SegQueue::<ProcessedBlockAndTransactions>::new());
+    let slot_queue = Arc::new(SegQueue::<SlotInfo>::new());
 
-	info!("Creating solana client");
-	let sol_ps_client = Client::<TransactionLogsSubscription>::new(config.client, processing_queue.clone());
+	let sol_ws_client = WsClient::<SlotsSubscription>::new(config.client.clone(), slot_queue.clone());
 
 	info!("Creating db_pool");
 	let db_pool = create_database_pool(&config.database).await?;
@@ -39,15 +41,15 @@ async fn main() -> Result<()> {
 	let storage_wm = StorageWorkerManager::new(proc_config, db_pool, storage_queue, 5);
 
 	info!("Starting subscription");
-	tokio::spawn(async move { sol_ps_client.subscribe().await });
+	let _ws_handle = tokio::spawn(async move { sol_ws_client.subscribe().await });
 
 	info!("Starting processing manager");
-	tokio::spawn(async move { proc_wm.run().await });
+	let _proc_handle = tokio::spawn(async move { proc_wm.run().await });
 
 	info!("Starting database manager");
-	tokio::spawn(async move { storage_wm.await.run().await });
+	let _db_handle = tokio::spawn(async move { storage_wm.await.run().await });
 
-	//tokio::try_join!(client_handle, proc_wm_handle, db_handle)?;
+    //tokio::try_join!(ws_handle, rpc_handle, proc_handle, db_handle);
 
 	tokio::signal::ctrl_c().await?;
 

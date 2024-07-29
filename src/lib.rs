@@ -6,5 +6,5 @@ pub mod models;
 pub mod pool;
 pub mod processor;
 pub mod storage;
-pub mod websocket;
+pub mod client;
 pub mod worker;

@@ -5,21 +5,20 @@ use crossbeam::queue::SegQueue;
 use log::{error, info};
 use std::sync::Arc;
 
-pub struct Client<T: Subscribable> {
+pub struct WsClient<T: Subscribable> {
 	pub config: ClientConfig,
-	queue: Arc<SegQueue<T::Output>>,
+	pub queue: Arc<SegQueue<T::Output>>,
 }
 
-impl<T: Subscribable> Client<T> {
+impl<T: Subscribable> WsClient<T> {
 	pub fn new(config: ClientConfig, queue: Arc<SegQueue<T::Output>>) -> Self {
 		Self { config, queue }
 	}
 
 	pub async fn subscribe(&self) -> Result<()> {
-		let (_, rx) = T::subscribe(&self.config)?;
-        info!("{:?}", rx);
-
+		let (_sub, rx) = T::subscribe(&self.config)?;
 		info!("Listening for updates...");
+
 		loop {
 			match rx.recv() {
 				Ok(response) => {

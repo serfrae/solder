@@ -50,8 +50,11 @@ where
 			loop {
 				match processing_queue.pop() {
 					Some(data) => {
+						log::info!("Processing manager got block");
 						let processed = data.process()?;
+						log::info!("Processed block");
 						let output = U::from(processed);
+						log::info!("Pushing to storage manager");
 						storage_queue.push(output);
 					}
 					None => tokio::task::yield_now().await,

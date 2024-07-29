@@ -2,6 +2,9 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum AppError {
+    #[error("Block not found")]
+    BlockNotFound,
+
 	#[error("Could not process block data")]
 	BlockProcessingError,
 
