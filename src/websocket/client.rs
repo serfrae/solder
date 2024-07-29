@@ -17,6 +17,7 @@ impl<T: Subscribable> Client<T> {
 
 	pub async fn subscribe(&self) -> Result<()> {
 		let (_, rx) = T::subscribe(&self.config)?;
+        info!("{:?}", rx);
 
 		info!("Listening for updates...");
 		loop {

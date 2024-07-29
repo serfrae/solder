@@ -4,10 +4,10 @@ use solder::{
 	config::load_config,
 	database::create_database_pool,
 	error::Result,
-	models::{ProcessedBlockAndTransactions, RawBlock},
+	models::{ProcessedBlockAndTransactions, RawBlock, ProcessedTransactionLogs, RawTransactionLogs},
 	processor::ProcessingWorkerManager,
 	storage::StorageWorkerManager,
-	websocket::{client::Client, subscribe_blocks::BlockSubscription},
+	websocket::{client::Client, subscribe_blocks::BlockSubscription, subscribe_logs::TransactionLogsSubscription},
 };
 use std::sync::Arc;
 
@@ -18,11 +18,11 @@ async fn main() -> Result<()> {
 	let config = load_config("Config.toml")?;
 	info!("Read config");
 	let proc_config = config.processor.to();
-	let processing_queue = Arc::new(SegQueue::<RawBlock>::new());
-	let storage_queue = Arc::new(SegQueue::<ProcessedBlockAndTransactions>::new());
+	let processing_queue = Arc::new(SegQueue::<RawTransactionLogs>::new());
+	let storage_queue = Arc::new(SegQueue::<ProcessedTransactionLogs>::new());
 
 	info!("Creating solana client");
-	let sol_ps_client = Client::<BlockSubscription>::new(config.client, processing_queue.clone());
+	let sol_ps_client = Client::<TransactionLogsSubscription>::new(config.client, processing_queue.clone());
 
 	info!("Creating db_pool");
 	let db_pool = create_database_pool(&config.database).await?;

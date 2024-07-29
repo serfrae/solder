@@ -15,7 +15,7 @@ impl Subscribable for TransactionLogsSubscription {
 
 	fn subscribe(config: &ClientConfig) -> Result<(Self, Receiver<Self::Output>)> {
 		let url = if !config.api_key.is_empty() {
-			format!("{}?api_key={}", config.url, config.api_key)
+			format!("{}?api-key={}", config.url, config.api_key)
 		} else {
 			config.url.clone()
 		};
