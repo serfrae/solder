@@ -1,19 +1,19 @@
 use super::Subscribable;
 use crate::{config::ClientConfig, error::Result, models::RawTransactionLogs};
+use crossbeam_channel::Receiver;
 use log::info;
 use solana_client::{
 	pubsub_client::PubsubClient,
 	rpc_config::{RpcTransactionLogsConfig, RpcTransactionLogsFilter},
 };
 use solana_sdk::commitment_config::CommitmentConfig;
-use tokio::sync::mpsc;
 
 pub struct TransactionLogsSubscription;
 
 impl Subscribable for TransactionLogsSubscription {
 	type Output = RawTransactionLogs;
 
-	fn subscribe(config: &ClientConfig) -> Result<(Self, mpsc::Receiver<Self::Output>)> {
+	fn subscribe(config: &ClientConfig) -> Result<(Self, Receiver<Self::Output>)> {
 		let url = if !config.api_key.is_empty() {
 			format!("{}?api_key={}", config.url, config.api_key)
 		} else {
@@ -26,8 +26,8 @@ impl Subscribable for TransactionLogsSubscription {
 		};
 
 		info!("Subscribing to logs...");
-		let (_subscription, rx) =
-			PubsubClient::log_subscribe(url.as_str(), log_filter, Some(log_config))?;
+		let log_subscribe = PubsubClient::logs_subscribe(url.as_str(), log_filter, log_config);
+		let (_subscription, rx) = log_subscribe?;
 
 		Ok((TransactionLogsSubscription, rx))
 	}

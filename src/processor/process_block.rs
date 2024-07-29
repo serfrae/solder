@@ -10,21 +10,28 @@ use log::{error, info};
 
 impl Processable for RawBlock {
 	type ProcessedOutput = (ProcessedBlock, ProcessedTransactions);
-	fn process(self) -> Result<Self::ProcessedOutput> {
+	fn process(&self) -> Result<Self::ProcessedOutput> {
 		let processed_block = ProcessedBlock::try_from(self)?;
-		let block = if let Some(block) = self.value.block {
+		let block = if let Some(block) = &self.value.block {
 			block
 		} else {
 			error!("No block data");
 			return Err(AppError::NoData);
 		};
 
-        info!("Processing transactions...");
+		info!("Processing transactions...");
 		let processed_transactions: ProcessedTransactions = block
 			.transactions
+			.clone()
 			.ok_or(AppError::NoData)?
 			.into_iter()
-			.zip(block.signatures.ok_or(AppError::NoData).into_iter())
+			.zip(
+				block
+					.signatures
+					.clone()
+					.ok_or(AppError::NoData)?
+					.into_iter(),
+			)
 			.map(|(transaction, signature)| TransactionWithSig {
 				transaction,
 				signature,

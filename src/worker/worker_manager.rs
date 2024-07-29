@@ -4,17 +4,29 @@ use async_trait::async_trait;
 use serde::Deserialize;
 use std::time::Duration;
 
+#[derive(Clone, Debug, Deserialize)]
 pub enum WorkerMode {
 	Pool,
 	Scale,
 }
 
-#[derive(Debug, Deserialize)]
+impl WorkerMode {
+	pub fn from_str(s: &str) -> Self {
+		match s {
+			"pool" => Self::Pool,
+			"scale" => Self::Scale,
+			_ => Self::Pool,
+		}
+	}
+}
+
+#[derive(Clone, Debug, Deserialize)]
 pub struct WorkerManagerConfig {
 	pub mode: WorkerMode,
 	pub scale_config: Option<WorkerScalingConfig>,
 }
 
+#[derive(Clone, Debug, Deserialize)]
 pub struct WorkerScalingConfig {
 	pub scale_up_threshold: usize,
 	pub scale_down_threshold: usize,
@@ -29,7 +41,7 @@ pub trait WorkerManager {
 
 	async fn shutdown_worker(&mut self, handle: WorkerHandle) -> Result<()>;
 
-	async fn shutdown_all(self) -> Result<()>;
+	async fn shutdown_all(&mut self) -> Result<()>;
 }
 
 #[async_trait]

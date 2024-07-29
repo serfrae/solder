@@ -13,6 +13,7 @@ where
 	T: Processable,
 	U: From<T::ProcessedOutput> + Storable,
 {
+	#[allow(dead_code)]
 	config: WorkerManagerConfig,
 	pool: Arc<ThreadPool>,
 	workers: Vec<WorkerHandle>,
@@ -22,8 +23,8 @@ where
 
 impl<T, U> ProcessingWorkerManager<T, U>
 where
-	T: Processable,
-	U: From<T::ProcessedOutput> + Storable,
+	T: Processable + 'static,
+	U: From<T::ProcessedOutput> + Storable + 'static,
 {
 	pub fn new(
 		config: WorkerManagerConfig,
@@ -71,8 +72,8 @@ where
 #[async_trait]
 impl<T, U> WorkerManager for ProcessingWorkerManager<T, U>
 where
-	T: Processable,
-	U: From<T::ProcessedOutput> + Storable,
+	T: Processable + 'static,
+	U: From<T::ProcessedOutput> + Storable + 'static,
 {
 	async fn spawn_worker(&mut self) {
 		let worker = ProcessingWorker::new(
@@ -89,7 +90,7 @@ where
 		Ok(())
 	}
 
-	async fn shutdown_all(mut self) -> Result<()> {
+	async fn shutdown_all(&mut self) -> Result<()> {
 		let mut shutdown_tasks = Vec::new();
 
 		for handle in self.workers.drain(..) {

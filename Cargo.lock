@@ -4004,6 +4004,7 @@ dependencies = [
  "bb8",
  "bb8-postgres",
  "crossbeam",
+ "crossbeam-channel",
  "log",
  "pretty_env_logger",
  "serde",

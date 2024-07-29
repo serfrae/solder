@@ -14,32 +14,44 @@ pub struct ProcessedBlock {
 	pub transactions: Vec<String>,
 }
 
-impl TryFrom<RawBlock> for ProcessedBlock {
-    type Error = AppError;
+impl TryFrom<&RawBlock> for ProcessedBlock {
+	type Error = AppError;
 
-	fn try_from(value: RawBlock) -> Result<Self> {
-		let block = if let Some(block) = value.value.block {
+	fn try_from(value: &RawBlock) -> Result<Self> {
+		let block = if let Some(block) = &value.value.block {
 			block
 		} else {
 			error!("No block data");
 			return Err(AppError::BlockProcessingError);
 		};
 
-		let signatures = if let Some(sig) = block.signatures {
+		let signatures = if let Some(sig) = &block.signatures {
 			sig
 		} else {
 			error!("No signatures");
 			return Err(AppError::BlockProcessingError);
 		};
 
+		let block_time = if let Some(block_time) = block.block_time {
+			block_time
+		} else {
+			0
+		};
+
+		let block_height = if let Some(block_height) = block.block_height {
+			block_height as i64
+		} else {
+			0
+		};
+
 		Ok(Self {
-			previous_blockhash: block.previous_blockhash,
-			blockhash: block.blockhash,
-			slot: value.slot,
-			parent_slot: block.parent_slot,
-			block_time: block.block_time,
-			block_height: block.block_height,
-			transactions: signatures,
+			previous_blockhash: block.previous_blockhash.clone(),
+			blockhash: block.blockhash.clone(),
+			slot: value.context.slot as i64,
+			parent_slot: block.parent_slot as i64,
+			block_time,
+			block_height,
+			transactions: signatures.to_vec(),
 		})
 	}
 }

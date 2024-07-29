@@ -40,7 +40,7 @@ impl TryFrom<TransactionWithSig> for ProcessedTransaction {
 			signature,
 		} = value;
 
-		let meta = transaction.meta.ok_or(AppError::NoData);
+		let meta = transaction.meta.ok_or(AppError::NoData)?;
 
 		let pre_token_balances: TokenBalances = meta
 			.pre_token_balances
@@ -64,32 +64,35 @@ impl TryFrom<TransactionWithSig> for ProcessedTransaction {
 			return Err(AppError::NoData);
 		}
 
+		let pre_balances = meta.pre_balances.into_iter().map(|x| x as i64).collect();
+		let post_balances = meta.post_balances.into_iter().map(|x| x as i64).collect();
+
 		Ok(Self {
 			signature,
-			fee: meta.fee,
-			pre_balances: transaction.meta.pre_balances,
-			post_balances: transaction.meta.post_balances,
+			fee: meta.fee as i64,
+			pre_balances,
+			post_balances,
 			pre_token_balances,
 			post_token_balances,
 		})
 	}
 }
 
-impl From<RawTokenBalance> for TokenBalance {
-	fn from(value: RawTokenBalance) -> Self {
-		let decimals = value.ui_token_amount.decimals as i64;
-		let amount = if let Some(amount) = value.ui_token_amount.amount {
-			amount * 10_usize.pow(decimals)
+impl From<&RawTokenBalance> for TokenBalance {
+	fn from(value: &RawTokenBalance) -> Self {
+		let decimals = value.ui_token_amount.decimals;
+		let amount = if let Some(amount) = value.ui_token_amount.ui_amount {
+			amount * 10f64.powf(decimals as f64)
 		} else {
-			0
+			0f64
 		} as i64;
 
 		Self {
-			mint: value.mint,
-			owner: value.owner,
+			mint: value.mint.clone(),
+			owner: value.owner.clone().unwrap_or("".to_string()),
 			amount,
-			decimals,
-			program_id: value.program_id,
+			decimals: decimals as i64,
+			program_id: value.program_id.clone().unwrap_or("".to_string()),
 		}
 	}
 }

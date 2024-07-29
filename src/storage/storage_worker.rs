@@ -45,10 +45,9 @@ where
 			loop {
 				match storage_queue.pop() {
 					Some(data) => {
-						let conn = self.db_pool.get().await?;
-						data.store(&conn).await?;
+						data.store(self.db_pool.clone())?.await?;
 					}
-					None => tokio::task::yield_now(),
+					None => tokio::task::yield_now().await,
 				}
 			}
 		})

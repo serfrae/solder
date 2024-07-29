@@ -1,5 +1,5 @@
 use crate::error::Result;
-use crate::worker::WorkerManagerConfig;
+use crate::worker::{WorkerManagerConfig, WorkerMode, WorkerScalingConfig};
 use serde::Deserialize;
 use std::fs::File;
 use std::io::Read;
@@ -38,6 +38,7 @@ pub struct ServerConfig {
 
 #[derive(Debug, Deserialize)]
 pub struct ProcessorConfig {
+	pub worker_mode: String,
 	pub worker_threads: u32,
 	pub min_workers: u16,
 	pub interval: u64,
@@ -47,12 +48,16 @@ pub struct ProcessorConfig {
 
 impl ProcessorConfig {
 	pub fn to(&self) -> WorkerManagerConfig {
+		let mode = WorkerMode::from_str(self.worker_mode.as_str());
 		WorkerManagerConfig {
-			min_workers: self.min_workers as usize,
-			max_workers: self.worker_threads as usize,
-			interval: Duration::from_millis(self.interval),
-			scale_up_threshold: self.scale_up_threshold as usize,
-			scale_down_threshold: self.scale_down_threshold as usize,
+			mode,
+			scale_config: Some(WorkerScalingConfig {
+				min_workers: self.min_workers as usize,
+				max_workers: self.worker_threads as usize,
+				interval: Duration::from_millis(self.interval),
+				scale_up_threshold: self.scale_up_threshold as usize,
+				scale_down_threshold: self.scale_down_threshold as usize,
+			}),
 		}
 	}
 }

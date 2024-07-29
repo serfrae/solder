@@ -7,29 +7,30 @@ use std::sync::Arc;
 
 pub struct Client<T: Subscribable> {
 	pub config: ClientConfig,
-	queue: Arc<SegQueue<T>>,
+	queue: Arc<SegQueue<T::Output>>,
 }
 
 impl<T: Subscribable> Client<T> {
-	pub fn new(config: ClientConfig, queue: Arc<SegQueue<T>>) -> Self {
+	pub fn new(config: ClientConfig, queue: Arc<SegQueue<T::Output>>) -> Self {
 		Self { config, queue }
 	}
 
 	pub async fn subscribe(&self) -> Result<()> {
-		let (_, mut rx) = T::subscribe(&self.config)?;
+		let (_, rx) = T::subscribe(&self.config)?;
 
 		info!("Listening for updates...");
 		loop {
-			match rx.recv().await {
-				Some(response) => {
+			match rx.recv() {
+				Ok(response) => {
 					info!("Received data");
-					&self.queue.push(response);
+					self.queue.push(response);
 				}
-				None => {
-					error!("Subscription channel closed");
+				Err(e) => {
+					error!("Subscription channel closed: {}", e);
 					break;
 				}
 			}
 		}
+		Ok(())
 	}
 }

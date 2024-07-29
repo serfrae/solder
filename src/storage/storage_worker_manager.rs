@@ -13,8 +13,9 @@ use tokio_postgres::NoTls;
 
 pub struct StorageWorkerManager<T>
 where
-	T: Storable,
+	T: Storable + 'static,
 {
+	#[allow(dead_code)]
 	config: WorkerManagerConfig,
 	pool: Arc<ThreadPool>,
 	db_pool: DatabasePool,
@@ -24,7 +25,7 @@ where
 
 impl<T> StorageWorkerManager<T>
 where
-	T: Storable,
+	T: Storable + 'static,
 {
 	pub async fn new(
 		config: WorkerManagerConfig,
@@ -71,10 +72,14 @@ where
 #[async_trait]
 impl<T> WorkerManager for StorageWorkerManager<T>
 where
-	T: Storable,
+	T: Storable + 'static,
 {
 	async fn spawn_worker(&mut self) {
-		let worker = StorageWorker::new(self.storage_rx.clone(), Arc::clone(&self.pool), Arc::clone(&self.db_pool));
+		let worker = StorageWorker::new(
+			self.storage_rx.clone(),
+			Arc::clone(&self.pool),
+			Arc::clone(&self.db_pool),
+		);
 
 		self.workers.push(worker);
 	}
@@ -84,7 +89,7 @@ where
 		Ok(())
 	}
 
-	async fn shutdown_all(mut self) -> Result<()> {
+	async fn shutdown_all(&mut self) -> Result<()> {
 		let mut shutdown_tasks = Vec::new();
 
 		for handle in self.workers.drain(..) {

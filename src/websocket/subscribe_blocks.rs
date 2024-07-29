@@ -7,15 +7,15 @@ use solana_client::{
 };
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_transaction_status::{TransactionDetails, UiTransactionEncoding};
-use tokio::sync::mpsc;
+use crossbeam_channel::Receiver;
 
 pub struct BlockSubscription;
 
 impl Subscribable for BlockSubscription {
 	type Output = RawBlock;
 
-	fn subscribe(config: &ClientConfig) -> Result<(Self, mpsc::Receiver<Self::Output>)> {
-		let url = if !config.api.key.is_empty() {
+	fn subscribe(config: &ClientConfig) -> Result<(Self, Receiver<Self::Output>)> {
+		let url = if !config.api_key.is_empty() {
 			format!("{}?api_key={}", config.url, config.api_key)
 		} else {
 			config.url.clone()

@@ -1,7 +1,7 @@
 use crate::{config::ClientConfig, error::Result};
-use tokio::sync::mpsc;
+use crossbeam_channel::Receiver;
 
 pub trait Subscribable: Sized {
 	type Output;
-	fn subscribe(config: &ClientConfig) -> Result<(Self, mpsc::Receiver<Self::Output>)>;
+	fn subscribe(config: &ClientConfig) -> Result<(Self, Receiver<Self::Output>)>;
 }

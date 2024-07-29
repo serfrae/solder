@@ -1,8 +1,11 @@
+use crate::database::DatabasePool;
 use crate::error::Result;
-use bb8::PooledConnection;
-use bb8_postgres::PostgresConnectionManager;
-use tokio_postgres::NoTls;
+use std::future::Future;
+use std::pin::Pin;
 
 pub trait Storable: Sized + Send {
-	fn store(&self, db_pool: ) -> Result<()>;
+	fn store(
+		&self,
+		db_pool: DatabasePool,
+	) -> Result<Pin<Box<dyn Future<Output = Result<()>> + Send>>>;
 }
