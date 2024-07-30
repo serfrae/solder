@@ -1,6 +1,6 @@
 use crate::error::{AppError, Result};
 use log::error;
-use solana_transaction_status::EncodedConfirmedBlock;
+use solana_transaction_status::{EncodedConfirmedBlock, UiConfirmedBlock};
 
 pub type RawBlock =
 	solana_client::rpc_response::Response<solana_client::rpc_response::RpcBlockUpdate>;
@@ -76,11 +76,39 @@ impl TryFrom<&EncodedConfirmedBlock> for ProcessedBlock {
 		Ok(Self {
 			previous_blockhash: value.previous_blockhash.clone(),
 			blockhash: value.blockhash.clone(),
-            slot: 0,
+			slot: 0,
 			parent_slot: value.parent_slot as i64,
 			block_time,
 			block_height,
 			transactions: Vec::new(),
+		})
+	}
+}
+
+impl TryFrom<UiConfirmedBlock> for ProcessedBlock {
+	type Error = AppError;
+
+	fn try_from(value: UiConfirmedBlock) -> Result<Self> {
+		let block_time = if let Some(block_time) = value.block_time {
+			block_time
+		} else {
+			0
+		};
+
+		let block_height = if let Some(block_height) = value.block_height {
+			block_height as i64
+		} else {
+			0
+		};
+
+		Ok(Self {
+			previous_blockhash: value.previous_blockhash.clone(),
+			blockhash: value.blockhash.clone(),
+			slot: 0,
+			parent_slot: value.parent_slot as i64,
+			block_time,
+			block_height,
+			transactions: value.signatures.clone().unwrap_or(Vec::new()),
 		})
 	}
 }

@@ -5,8 +5,8 @@ use crate::{
 };
 
 impl Processable for RawTransactionLogs {
-	type ProcessedOutput = ProcessedTransactionLogs;
-	fn process(&self) -> Result<Self::ProcessedOutput> {
+	type Output = ProcessedTransactionLogs;
+	fn process(&self) -> Result<Self::Output> {
 		unimplemented!();
 	}
 }

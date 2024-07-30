@@ -12,12 +12,12 @@ impl Gettable for SlotInfo {
 	fn get(
 		input: SlotInfo,
 		config: &ClientConfig,
-	) -> Pin<Box<dyn Future<Output = Result<Self::Output>> + 'static>> {
+	) -> Pin<Box<dyn Future<Output = Result<Self::Output>> + Send + 'static>> {
 		let url = config.get_url();
 		Box::pin(async move {
 			let client =
 				RpcClient::new_with_commitment(url.as_str(), CommitmentConfig::confirmed());
-			let slot = input.slot - 100;
+			let slot = input.root;
 			let block_config = RpcBlockConfig {
 				encoding: None,
 				commitment: Some(CommitmentConfig::confirmed()),

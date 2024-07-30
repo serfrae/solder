@@ -1,30 +1,27 @@
 use super::Processable;
 use crate::error::Result;
 use crate::pool::ThreadPool;
-use crate::storage::Storable;
 use crate::worker::{Worker, WorkerHandle};
 use crossbeam::queue::SegQueue;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-pub struct ProcessingWorker<T, U>
+pub struct ProcessingWorker<T: Processable>
 where
-	T: Processable,
-	U: From<T::ProcessedOutput> + Storable,
+	T::Output: Send,
 {
 	processing_queue: Arc<SegQueue<T>>,
-	storage_queue: Arc<SegQueue<U>>,
+	storage_queue: Arc<SegQueue<T::Output>>,
 }
 
-impl<T, U> ProcessingWorker<T, U>
+impl<T: Processable> ProcessingWorker<T>
 where
-	T: Processable + 'static,
-	U: From<T::ProcessedOutput> + Storable + 'static,
+	T::Output: Send + 'static,
 {
 	pub fn new(
 		processing_queue: Arc<SegQueue<T>>,
-		storage_queue: Arc<SegQueue<U>>,
+		storage_queue: Arc<SegQueue<T::Output>>,
 		thread_pool: Arc<ThreadPool>,
 	) -> WorkerHandle {
 		WorkerHandle::new(
@@ -37,10 +34,9 @@ where
 	}
 }
 
-impl<T, U> Worker for ProcessingWorker<T, U>
+impl<T: Processable> Worker for ProcessingWorker<T>
 where
-	T: Processable + 'static,
-	U: From<T::ProcessedOutput> + Storable + 'static,
+	T::Output: Send + 'static,
 {
 	fn run(self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'static>> {
 		let processing_queue = self.processing_queue.clone();
@@ -50,12 +46,11 @@ where
 			loop {
 				match processing_queue.pop() {
 					Some(data) => {
-						log::info!("Processing manager got block");
+						log::info!("Processing manager got data");
+                        log::info!("Processing queue length: {}", processing_queue.len());
 						let processed = data.process()?;
-						log::info!("Processed block");
-						let output = U::from(processed);
 						log::info!("Pushing to storage manager");
-						storage_queue.push(output);
+						storage_queue.push(processed);
 					}
 					None => tokio::task::yield_now().await,
 				}

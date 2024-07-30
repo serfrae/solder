@@ -1,34 +1,34 @@
-use super::{Processable, ProcessingWorker};
+use super::Gettable;
+use super::rpc_worker::RpcClientWorker;
+use crate::config::ClientConfig;
 use crate::error::Result;
 use crate::pool::ThreadPool;
-use crate::worker::{WorkerHandle, WorkerManager, WorkerManagerConfig};
+use crate::worker::{WorkerHandle, WorkerManager};
 use async_trait::async_trait;
 use crossbeam::queue::SegQueue;
-use log::info;
 use std::sync::Arc;
 
-pub struct ProcessingWorkerManager<T>
+pub struct RpcWorkerManager<T>
 where
-	T: Processable,
+	T: Gettable,
 	T::Output: Send,
 {
-	#[allow(dead_code)]
-	config: WorkerManagerConfig,
+	config: ClientConfig,
 	pool: Arc<ThreadPool>,
 	workers: Vec<WorkerHandle>,
-	processing_queue: Arc<SegQueue<T>>,
-	storage_queue: Arc<SegQueue<T::Output>>,
+	queue_in: Arc<SegQueue<T>>,
+	processing_queue: Arc<SegQueue<T::Output>>,
 }
 
-impl<T> ProcessingWorkerManager<T>
+impl<T> RpcWorkerManager<T>
 where
-	T: Processable,
-    T::Output: Send + 'static,
+	T: Gettable + 'static,
+	T::Output: Send + 'static,
 {
 	pub fn new(
-		config: WorkerManagerConfig,
-		processing_queue: Arc<SegQueue<T>>,
-		storage_queue: Arc<SegQueue<T::Output>>,
+		config: ClientConfig,
+		queue_in: Arc<SegQueue<T>>,
+		processing_queue: Arc<SegQueue<T::Output>>,
 		worker_threads: usize,
 	) -> Self {
 		let pool = Arc::new(ThreadPool::new(worker_threads));
@@ -37,17 +37,15 @@ where
 			config,
 			pool,
 			workers: Vec::with_capacity(worker_threads),
+			queue_in,
 			processing_queue,
-			storage_queue,
 		}
 	}
 
 	pub async fn initialize(&mut self) {
-		info!("Initialiazing minimum workers");
-		for i in 0..self.workers.capacity() {
-			info!("Initiailizing worker: {}", i);
+		log::info!("Initializing rpc workers...");
+		for _ in 0..self.workers.capacity() {
 			self.spawn_worker().await;
-			info!("Worker initialized");
 		}
 	}
 
@@ -57,7 +55,7 @@ where
 			tokio::signal::ctrl_c()
 				.await
 				.expect("Failed to listen for Ctrl+C");
-			info!("Received Ctrl+C signal. Initiating shutdown...");
+			log::info!("Received Ctrl+C signal. Initiating shtudown...");
 		});
 
 		let _ = tokio::try_join!(ctrl_c);
@@ -69,18 +67,18 @@ where
 }
 
 #[async_trait]
-impl<T> WorkerManager for ProcessingWorkerManager<T>
+impl<T> WorkerManager for RpcWorkerManager<T>
 where
-	T: Processable + 'static,
+	T: Gettable + 'static,
 	T::Output: Send + 'static,
 {
 	async fn spawn_worker(&mut self) {
-		let worker = ProcessingWorker::new(
+		let worker = RpcClientWorker::new(
+			self.config.clone(),
+			self.queue_in.clone(),
 			self.processing_queue.clone(),
-			self.storage_queue.clone(),
-			Arc::clone(&self.pool),
+			self.pool.clone(),
 		);
-
 		self.workers.push(worker);
 	}
 
@@ -90,7 +88,7 @@ where
 	}
 
 	async fn shutdown_all(&mut self) -> Result<()> {
-		let mut shutdown_tasks = Vec::new();
+		let mut shutdown_tasks = Vec::with_capacity(self.workers.capacity());
 
 		for handle in self.workers.drain(..) {
 			shutdown_tasks.push(handle.shutdown());

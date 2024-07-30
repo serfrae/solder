@@ -1,5 +1,6 @@
 pub mod gettable;
-pub mod rpc;
+pub mod rpc_manager;
+pub mod rpc_worker;
 pub mod subscribable;
 pub mod subscribe_blocks;
 pub mod subscribe_logs;

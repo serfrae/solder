@@ -1,30 +1,22 @@
 use crate::error::{AppError, Result};
 use serde::{Deserialize, Serialize};
-use solana_transaction_status::{EncodedTransactionWithStatusMeta, UiTransactionTokenBalance};
+use solana_transaction_status::{
+	EncodedTransactionWithStatusMeta, UiTransactionTokenBalance,
+};
 
-pub type RawTransaction = EncodedTransactionWithStatusMeta;
-pub type RawTokenBalance = UiTransactionTokenBalance;
-pub type ProcessedTransactions = Vec<ProcessedTransaction>;
-pub type TokenBalances = Vec<TokenBalance>;
-
-pub struct TransactionWithSig {
+pub struct TransactionWithSignature {
 	pub signature: String,
-	pub transaction: RawTransaction,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ProcessedTransactionWithSig {
-	signature: String,
-	transaction: ProcessedTransaction,
+	pub transaction: EncodedTransactionWithStatusMeta,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ProcessedTransaction {
+    signature: Option<String>,
 	fee: i64,
 	pre_balances: Vec<i64>,
 	post_balances: Vec<i64>,
-	pre_token_balances: TokenBalances,
-	post_token_balances: TokenBalances,
+	pre_token_balances: Vec<TokenBalance>,
+	post_token_balances: Vec<TokenBalance>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -36,37 +28,30 @@ pub struct TokenBalance {
 	program_id: String,
 }
 
-impl TryFrom<RawTransaction> for ProcessedTransaction {
+impl TryFrom<EncodedTransactionWithStatusMeta> for ProcessedTransaction {
 	type Error = AppError;
-	fn try_from(value: RawTransaction) -> Result<Self> {
+	fn try_from(value: EncodedTransactionWithStatusMeta) -> Result<Self> {
 		let meta = value.meta.ok_or(AppError::NoData)?;
 
-		let pre_token_balances: TokenBalances = meta
+		let pre_token_balances: Vec<TokenBalance> = meta
 			.pre_token_balances
 			.ok_or(AppError::NoData)?
 			.iter()
 			.map(TokenBalance::from)
 			.collect();
 
-		if pre_token_balances.is_empty() {
-			return Err(AppError::NoData);
-		}
-
-		let post_token_balances: TokenBalances = meta
+		let post_token_balances: Vec<TokenBalance> = meta
 			.post_token_balances
 			.ok_or(AppError::NoData)?
 			.iter()
 			.map(TokenBalance::from)
 			.collect();
 
-		if post_token_balances.is_empty() {
-			return Err(AppError::NoData);
-		}
-
 		let pre_balances = meta.pre_balances.into_iter().map(|x| x as i64).collect();
 		let post_balances = meta.post_balances.into_iter().map(|x| x as i64).collect();
 
 		Ok(Self {
+            signature: None,
 			fee: meta.fee as i64,
 			pre_balances,
 			post_balances,
@@ -76,26 +61,8 @@ impl TryFrom<RawTransaction> for ProcessedTransaction {
 	}
 }
 
-impl TryFrom<TransactionWithSig> for ProcessedTransactionWithSig {
-	type Error = AppError;
-
-	fn try_from(value: TransactionWithSig) -> Result<Self> {
-		let TransactionWithSig {
-			transaction,
-			signature,
-		} = value;
-
-		let processed_transaction = ProcessedTransaction::try_from(transaction)?;
-
-		Ok(Self {
-			signature,
-			transaction: processed_transaction, 
-		})
-	}
-}
-
-impl From<&RawTokenBalance> for TokenBalance {
-	fn from(value: &RawTokenBalance) -> Self {
+impl From<&UiTransactionTokenBalance> for TokenBalance {
+	fn from(value: &UiTransactionTokenBalance) -> Self {
 		let decimals = value.ui_token_amount.decimals;
 		let amount = if let Some(amount) = value.ui_token_amount.ui_amount {
 			amount * 10f64.powf(decimals as f64)

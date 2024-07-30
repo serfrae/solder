@@ -1,12 +1,11 @@
 use super::Processable;
 use crate::{
 	error::{AppError, Result},
-	models::{
-		ProcessedBlock, ProcessedTransaction, ProcessedTransactions, RawBlock, TransactionWithSig, ProcessedTransactionWithSig
-	},
+	models::{ProcessedBlock, ProcessedTransaction, TransactionWithSignature},
 };
-use crate::models::RawTransaction;
-use solana_transaction_status::EncodedConfirmedBlock;
+use solana_transaction_status::{
+	EncodedConfirmedBlock, EncodedTransactionWithStatusMeta, UiConfirmedBlock,
+};
 
 use log::{error, info};
 
@@ -46,18 +45,47 @@ use log::{error, info};
 //}
 
 impl Processable for EncodedConfirmedBlock {
-	type ProcessedOutput = (ProcessedBlock, ProcessedTransactions);
-	fn process(&self) -> Result<Self::ProcessedOutput> {
+	type Output = (ProcessedBlock, Vec<ProcessedTransaction>);
+	fn process(&self) -> Result<Self::Output> {
 		let processed_block = ProcessedBlock::try_from(self)?;
 
 		info!("Processing transactions...");
-		let processed_transactions: ProcessedTransactions = self
+		let processed_transactions: Vec<ProcessedTransaction> = self
 			.transactions
 			.clone()
 			.into_iter()
-			.map(|x: RawTransaction| -> ProcessedTransaction { ProcessedTransaction::try_from(x).expect("placeholder") })
+			.map(
+				|x: EncodedTransactionWithStatusMeta| -> ProcessedTransaction {
+					ProcessedTransaction::try_from(x).expect("placeholder")
+				},
+			)
 			.collect();
 
+		Ok((processed_block, processed_transactions))
+	}
+}
+
+impl Processable for UiConfirmedBlock {
+	type Output = (ProcessedBlock, Vec<ProcessedTransaction>);
+	fn process(&self) -> Result<Self::Output> {
+		let processed_block = ProcessedBlock::try_from(self.clone())?;
+
+		info!("Processing transactions...");
+		info!("Signatures: {:?}", &self.signatures);
+
+		let processed_transactions: Vec<ProcessedTransaction> = self
+			.transactions
+			.clone()
+			.ok_or(AppError::NoData)?
+			.into_iter()
+			.map(
+				|x: EncodedTransactionWithStatusMeta| -> ProcessedTransaction {
+					ProcessedTransaction::try_from(x).expect("placeholder")
+				},
+			)
+			.collect();
+
+		info!("Block processed: {}", processed_block.blockhash);
 		Ok((processed_block, processed_transactions))
 	}
 }

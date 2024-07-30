@@ -1,6 +1,6 @@
 use crate::error::Result;
 
-pub trait Processable: Sized + Send {
-	type ProcessedOutput;
-	fn process(&self) -> Result<Self::ProcessedOutput>;
+pub trait Processable: Send + 'static {
+	type Output: Send;
+	fn process(&self) -> Result<Self::Output>;
 }

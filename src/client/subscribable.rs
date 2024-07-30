@@ -4,7 +4,7 @@ use solana_client::pubsub_client::PubsubClientSubscription;
 use serde::de::DeserializeOwned;
 
 pub trait Subscribable: Sized + 'static {
-	type Output: DeserializeOwned;
+	type Output: DeserializeOwned + Send;
 	fn subscribe(
 		config: &ClientConfig,
 	) -> Result<(
