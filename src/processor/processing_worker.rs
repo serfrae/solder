@@ -46,11 +46,12 @@ where
 			loop {
 				match processing_queue.pop() {
 					Some(data) => {
-						log::info!("Processing manager got data");
-                        log::info!("Processing queue length: {}", processing_queue.len());
+						log::info!("[PROCESSING] Received data");
+                        log::info!("[PROCESSING] Queue length: {}", processing_queue.len());
 						let processed = data.process()?;
-						log::info!("Pushing to storage manager");
+						log::info!("[PROCESSING] Done");
 						storage_queue.push(processed);
+                        log::info!("[PROCESSING] Storage queue length: {}", storage_queue.len());
 					}
 					None => tokio::task::yield_now().await,
 				}

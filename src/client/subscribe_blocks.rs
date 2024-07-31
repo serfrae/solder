@@ -1,5 +1,5 @@
 use super::Subscribable;
-use crate::{config::ClientConfig, error::Result, models::RawBlock};
+use crate::{config::ClientConfig, error::Result, models::BlockUpdate};
 use crossbeam_channel::Receiver;
 use log::info;
 use solana_client::{
@@ -10,7 +10,7 @@ use solana_sdk::commitment_config::CommitmentConfig;
 use solana_transaction_status::{TransactionDetails, UiTransactionEncoding};
 
 impl Subscribable for BlockSubscription {
-	type Output = RawBlock;
+	type Output = BlockUpdate;
 
 	fn subscribe(
 		config: &ClientConfig,

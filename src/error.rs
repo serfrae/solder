@@ -2,8 +2,14 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum AppError {
-    #[error("Block not found")]
-    BlockNotFound,
+	#[error("No decoded transaction")]
+	NoDecodedTransaction,
+
+	#[error("No transaction signature")]
+	NoTxid,
+
+	#[error("Block not found")]
+	BlockNotFound,
 
 	#[error("Could not process block data")]
 	BlockProcessingError,
@@ -58,6 +64,9 @@ pub enum AppError {
 
 	#[error("Parse token type")]
 	ParseTokenType,
+
+    #[error("No token balances")]
+    EmptyTokenBalances,
 
 	#[error("Couldn't open config: {0}")]
 	OpenFileError(#[from] std::io::Error),

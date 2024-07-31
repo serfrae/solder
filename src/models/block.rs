@@ -1,10 +1,10 @@
-use crate::error::{AppError, Result};
-use log::error;
-use solana_transaction_status::{EncodedConfirmedBlock, UiConfirmedBlock};
+use solana_client::rpc_response::SlotInfo;
+use solana_transaction_status::UiConfirmedBlock;
 
-pub type RawBlock =
+pub type BlockUpdate =
 	solana_client::rpc_response::Response<solana_client::rpc_response::RpcBlockUpdate>;
 
+#[derive(Debug, Clone)]
 pub struct ProcessedBlock {
 	pub previous_blockhash: String,
 	pub blockhash: String,
@@ -12,103 +12,29 @@ pub struct ProcessedBlock {
 	pub parent_slot: i64,
 	pub block_time: i64,
 	pub block_height: i64,
-	pub transactions: Vec<String>,
 }
 
-impl TryFrom<&RawBlock> for ProcessedBlock {
-	type Error = AppError;
-
-	fn try_from(value: &RawBlock) -> Result<Self> {
-		let block = if let Some(block) = &value.value.block {
-			block
-		} else {
-			error!("No block data");
-			return Err(AppError::BlockProcessingError);
-		};
-
-		let signatures = if let Some(sig) = &block.signatures {
-			sig
-		} else {
-			error!("No signatures");
-			return Err(AppError::BlockProcessingError);
-		};
-
-		let block_time = if let Some(block_time) = block.block_time {
+impl From<(SlotInfo, UiConfirmedBlock)> for ProcessedBlock {
+	fn from(value: (SlotInfo, UiConfirmedBlock)) -> Self {
+		let block_time = if let Some(block_time) = value.1.block_time {
 			block_time
 		} else {
 			0
 		};
 
-		let block_height = if let Some(block_height) = block.block_height {
+		let block_height = if let Some(block_height) = value.1.block_height {
 			block_height as i64
 		} else {
 			0
 		};
 
-		Ok(Self {
-			previous_blockhash: block.previous_blockhash.clone(),
-			blockhash: block.blockhash.clone(),
-			slot: value.context.slot as i64,
-			parent_slot: block.parent_slot as i64,
+		Self {
+			previous_blockhash: value.1.previous_blockhash.clone(),
+			blockhash: value.1.blockhash.clone(),
+			slot: value.0.root as i64,
+			parent_slot: value.1.parent_slot as i64,
 			block_time,
 			block_height,
-			transactions: signatures.to_vec(),
-		})
-	}
-}
-
-impl TryFrom<&EncodedConfirmedBlock> for ProcessedBlock {
-	type Error = AppError;
-
-	fn try_from(value: &EncodedConfirmedBlock) -> Result<Self> {
-		let block_time = if let Some(block_time) = value.block_time {
-			block_time
-		} else {
-			0
-		};
-
-		let block_height = if let Some(block_height) = value.block_height {
-			block_height as i64
-		} else {
-			0
-		};
-
-		Ok(Self {
-			previous_blockhash: value.previous_blockhash.clone(),
-			blockhash: value.blockhash.clone(),
-			slot: 0,
-			parent_slot: value.parent_slot as i64,
-			block_time,
-			block_height,
-			transactions: Vec::new(),
-		})
-	}
-}
-
-impl TryFrom<UiConfirmedBlock> for ProcessedBlock {
-	type Error = AppError;
-
-	fn try_from(value: UiConfirmedBlock) -> Result<Self> {
-		let block_time = if let Some(block_time) = value.block_time {
-			block_time
-		} else {
-			0
-		};
-
-		let block_height = if let Some(block_height) = value.block_height {
-			block_height as i64
-		} else {
-			0
-		};
-
-		Ok(Self {
-			previous_blockhash: value.previous_blockhash.clone(),
-			blockhash: value.blockhash.clone(),
-			slot: 0,
-			parent_slot: value.parent_slot as i64,
-			block_time,
-			block_height,
-			transactions: value.signatures.clone().unwrap_or(Vec::new()),
-		})
+		}
 	}
 }

@@ -45,8 +45,8 @@ where
 			loop {
 				match storage_queue.pop() {
 					Some(data) => {
-                        log::info!("Data received by storage worker");
-                        log::info!("Storage queue length: {}", storage_queue.len());
+                        log::info!("[STORAGE] Received data");
+						log::info!("[STORAGE] Queue length: {}", storage_queue.len());
 						data.store(self.db_pool.clone())?.await?;
 					}
 					None => tokio::task::yield_now().await,

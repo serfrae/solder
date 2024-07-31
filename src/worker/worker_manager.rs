@@ -1,8 +1,9 @@
 use super::WorkerHandle;
 use crate::error::Result;
-use async_trait::async_trait;
 use serde::Deserialize;
 use std::time::Duration;
+use std::pin::Pin;
+use std::future::Future;
 
 #[derive(Clone, Debug, Deserialize)]
 pub enum WorkerMode {
@@ -35,20 +36,18 @@ pub struct WorkerScalingConfig {
 	pub interval: Duration,
 }
 
-#[async_trait]
 pub trait WorkerManager {
-	async fn spawn_worker(&mut self);
+	fn spawn_worker(&mut self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>>;
 
-	async fn shutdown_worker(&mut self, handle: WorkerHandle) -> Result<()>;
+	fn shutdown_worker(&mut self, handle: WorkerHandle) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>>;
 
-	async fn shutdown_all(&mut self) -> Result<()>;
+	fn shutdown_all(&mut self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>>;
 }
 
-#[async_trait]
 pub trait WorkerMonitor {
-	async fn monitor_and_scale(self);
+	fn monitor_and_scale(self) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>;
 
-	async fn scale_up(&self);
+	fn scale_up(&self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>>;
 
-	async fn scale_down(&self);
+	fn scale_down(&self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>>;
 }

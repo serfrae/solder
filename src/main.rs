@@ -19,7 +19,7 @@ async fn main() -> Result<()> {
 
 	let storage_queue = Arc::new(SegQueue::<ProcessedBlockAndTransactions>::new());
 	let rpc_queue_in = Arc::new(SegQueue::<SlotInfo>::new());
-	let processing_queue = Arc::new(SegQueue::<UiConfirmedBlock>::new());
+	let processing_queue = Arc::new(SegQueue::<(SlotInfo, UiConfirmedBlock)>::new());
 
 	let sol_ws_client =
 		WsClient::<SlotsSubscription>::new(config.client.clone(), rpc_queue_in.clone());

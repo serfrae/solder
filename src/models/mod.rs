@@ -6,4 +6,4 @@ pub use block::*;
 pub use log::*;
 pub use transaction::*;
 
-pub type ProcessedBlockAndTransactions = (ProcessedBlock, Vec<ProcessedTransaction>);
+pub type ProcessedBlockAndTransactions = (ProcessedBlock, Vec<Option<ProcessedTransaction>>);

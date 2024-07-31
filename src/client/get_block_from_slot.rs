@@ -8,7 +8,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 impl Gettable for SlotInfo {
-	type Output = UiConfirmedBlock;
+	type Output = (Self, UiConfirmedBlock);
 	fn get(
 		input: SlotInfo,
 		config: &ClientConfig,
@@ -17,7 +17,9 @@ impl Gettable for SlotInfo {
 		Box::pin(async move {
 			let client =
 				RpcClient::new_with_commitment(url.as_str(), CommitmentConfig::confirmed());
+
 			let slot = input.root;
+
 			let block_config = RpcBlockConfig {
 				encoding: None,
 				commitment: Some(CommitmentConfig::confirmed()),
@@ -25,9 +27,12 @@ impl Gettable for SlotInfo {
 				rewards: Some(true),
 				transaction_details: Some(TransactionDetails::Full),
 			};
-			client
+
+			let block = client
 				.get_block_with_config(slot, block_config)
-				.map_err(|e| AppError::from(e))
+				.map_err(|e| AppError::from(e))?;
+
+			Ok((input, block))
 		})
 	}
 }

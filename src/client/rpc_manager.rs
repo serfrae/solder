@@ -1,11 +1,12 @@
-use super::Gettable;
 use super::rpc_worker::RpcClientWorker;
+use super::Gettable;
 use crate::config::ClientConfig;
 use crate::error::Result;
 use crate::pool::ThreadPool;
 use crate::worker::{WorkerHandle, WorkerManager};
-use async_trait::async_trait;
 use crossbeam::queue::SegQueue;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 pub struct RpcWorkerManager<T>
@@ -66,38 +67,46 @@ where
 	}
 }
 
-#[async_trait]
 impl<T> WorkerManager for RpcWorkerManager<T>
 where
 	T: Gettable + 'static,
 	T::Output: Send + 'static,
 {
-	async fn spawn_worker(&mut self) {
-		let worker = RpcClientWorker::new(
-			self.config.clone(),
-			self.queue_in.clone(),
-			self.processing_queue.clone(),
-			self.pool.clone(),
-		);
-		self.workers.push(worker);
+	fn spawn_worker(&mut self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+		Box::pin(async move {
+			let worker = RpcClientWorker::new(
+				self.config.clone(),
+				self.queue_in.clone(),
+				self.processing_queue.clone(),
+				self.pool.clone(),
+			);
+			self.workers.push(worker);
+		})
 	}
 
-	async fn shutdown_worker(&mut self, handle: WorkerHandle) -> Result<()> {
-		handle.shutdown().await?;
-		Ok(())
+	fn shutdown_worker(
+		&mut self,
+		handle: WorkerHandle,
+	) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
+		Box::pin(async move {
+			handle.shutdown().await?;
+			Ok(())
+		})
 	}
 
-	async fn shutdown_all(&mut self) -> Result<()> {
-		let mut shutdown_tasks = Vec::with_capacity(self.workers.capacity());
+	fn shutdown_all(&mut self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
+		Box::pin(async move {
+			let mut shutdown_tasks = Vec::with_capacity(self.workers.capacity());
 
-		for handle in self.workers.drain(..) {
-			shutdown_tasks.push(handle.shutdown());
-		}
+			for handle in self.workers.drain(..) {
+				shutdown_tasks.push(handle.shutdown());
+			}
 
-		for task in shutdown_tasks {
-			task.await?
-		}
+			for task in shutdown_tasks {
+				task.await?
+			}
 
-		Ok(())
+			Ok(())
+		})
 	}
 }

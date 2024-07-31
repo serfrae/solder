@@ -1,7 +1,7 @@
 use crate::error::{AppError, Result};
 use serde::{Deserialize, Serialize};
 use solana_transaction_status::{
-	EncodedTransactionWithStatusMeta, UiTransactionTokenBalance,
+	EncodedTransaction, EncodedTransactionWithStatusMeta, UiTransaction, UiTransactionTokenBalance,
 };
 
 pub struct TransactionWithSignature {
@@ -9,17 +9,17 @@ pub struct TransactionWithSignature {
 	pub transaction: EncodedTransactionWithStatusMeta,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ProcessedTransaction {
-    signature: Option<String>,
-	fee: i64,
-	pre_balances: Vec<i64>,
-	post_balances: Vec<i64>,
-	pre_token_balances: Vec<TokenBalance>,
-	post_token_balances: Vec<TokenBalance>,
+	pub signature: String,
+	pub fee: i64,
+	pub pre_balances: Vec<i64>,
+	pub post_balances: Vec<i64>,
+	pub pre_token_balances: Vec<TokenBalance>,
+	pub post_token_balances: Vec<TokenBalance>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct TokenBalance {
 	mint: String,
 	amount: i64,
@@ -31,27 +31,38 @@ pub struct TokenBalance {
 impl TryFrom<EncodedTransactionWithStatusMeta> for ProcessedTransaction {
 	type Error = AppError;
 	fn try_from(value: EncodedTransactionWithStatusMeta) -> Result<Self> {
+		let ui_tx = if let EncodedTransaction::Json(tx) = value.transaction {
+			Some(tx)
+		} else {
+			None
+		}.ok_or(AppError::NoDecodedTransaction)?;
+
 		let meta = value.meta.ok_or(AppError::NoData)?;
 
 		let pre_token_balances: Vec<TokenBalance> = meta
 			.pre_token_balances
-			.ok_or(AppError::NoData)?
+			.ok_or(AppError::EmptyTokenBalances)?
 			.iter()
 			.map(TokenBalance::from)
 			.collect();
 
 		let post_token_balances: Vec<TokenBalance> = meta
 			.post_token_balances
-			.ok_or(AppError::NoData)?
+			.ok_or(AppError::EmptyTokenBalances)?
 			.iter()
 			.map(TokenBalance::from)
 			.collect();
 
 		let pre_balances = meta.pre_balances.into_iter().map(|x| x as i64).collect();
 		let post_balances = meta.post_balances.into_iter().map(|x| x as i64).collect();
+		let signature = ui_tx
+			.signatures
+			.get(0)
+			.ok_or(AppError::NoTxid)?
+			.to_string();
 
 		Ok(Self {
-            signature: None,
+			signature,
 			fee: meta.fee as i64,
 			pre_balances,
 			post_balances,

@@ -2,9 +2,10 @@ use super::{Processable, ProcessingWorker};
 use crate::error::Result;
 use crate::pool::ThreadPool;
 use crate::worker::{WorkerHandle, WorkerManager, WorkerManagerConfig};
-use async_trait::async_trait;
 use crossbeam::queue::SegQueue;
 use log::info;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 pub struct ProcessingWorkerManager<T>
@@ -23,7 +24,7 @@ where
 impl<T> ProcessingWorkerManager<T>
 where
 	T: Processable,
-    T::Output: Send + 'static,
+	T::Output: Send + 'static,
 {
 	pub fn new(
 		config: WorkerManagerConfig,
@@ -68,38 +69,46 @@ where
 	}
 }
 
-#[async_trait]
 impl<T> WorkerManager for ProcessingWorkerManager<T>
 where
 	T: Processable + 'static,
 	T::Output: Send + 'static,
 {
-	async fn spawn_worker(&mut self) {
-		let worker = ProcessingWorker::new(
-			self.processing_queue.clone(),
-			self.storage_queue.clone(),
-			Arc::clone(&self.pool),
-		);
+	fn spawn_worker(&mut self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+		Box::pin(async move {
+			let worker = ProcessingWorker::new(
+				self.processing_queue.clone(),
+				self.storage_queue.clone(),
+				Arc::clone(&self.pool),
+			);
 
-		self.workers.push(worker);
+			self.workers.push(worker);
+		})
 	}
 
-	async fn shutdown_worker(&mut self, handle: WorkerHandle) -> Result<()> {
-		handle.shutdown().await?;
-		Ok(())
+	fn shutdown_worker(
+		&mut self,
+		handle: WorkerHandle,
+	) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
+		Box::pin(async move {
+			handle.shutdown().await?;
+			Ok(())
+		})
 	}
 
-	async fn shutdown_all(&mut self) -> Result<()> {
-		let mut shutdown_tasks = Vec::new();
+	fn shutdown_all(&mut self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
+		Box::pin(async move {
+			let mut shutdown_tasks = Vec::new();
 
-		for handle in self.workers.drain(..) {
-			shutdown_tasks.push(handle.shutdown());
-		}
+			for handle in self.workers.drain(..) {
+				shutdown_tasks.push(handle.shutdown());
+			}
 
-		for task in shutdown_tasks {
-			task.await?
-		}
+			for task in shutdown_tasks {
+				task.await?
+			}
 
-		Ok(())
+			Ok(())
+		})
 	}
 }
