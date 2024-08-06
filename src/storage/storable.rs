@@ -5,7 +5,7 @@ use std::pin::Pin;
 
 pub trait Storable: Sized + Send {
 	fn store(
-		&self,
+		self,
 		db_pool: DatabasePool,
 	) -> Result<Pin<Box<dyn Future<Output = Result<()>> + Send>>>;
 }

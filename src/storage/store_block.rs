@@ -2,73 +2,78 @@ use super::Storable;
 use crate::{
 	database::DatabasePool,
 	error::{AppError, Result},
-	models::ProcessedBlockAndTransactions,
+	models::Aggregate,
 };
 use std::{future::Future, pin::Pin};
 
-impl Storable for ProcessedBlockAndTransactions {
+impl Storable for Vec<Option<Aggregate>> {
 	fn store(
-		&self,
+		self,
 		db_pool: DatabasePool,
 	) -> Result<Pin<Box<dyn Future<Output = Result<()>> + Send>>> {
 		let db_pool_clone = db_pool.clone();
-		let data = self.0.clone();
 
 		Ok(Box::pin(async move {
-			let (transaction_task, block_task) = tokio::join!(
-				tokio::task::spawn(async move {
-					let conn = if let Ok(conn) = db_pool_clone.get().await {
-						conn
-					} else {
-                        log::error!("Connection error: {}", conn?);
-						return Err(AppError::DbPoolError);
-					};
-					log::info!("Obtained connection from connection pool");
-					conn.execute(
-						"CREATE TABLE IF NOT EXISTS block (
-            previous_blockhash TEXT NOT NULL,
-            blockhash TEXT NOT NULL PRIMARY KEY,
+			let mut conn = db_pool_clone.get().await.map_err(|e| {
+				log::error!("Could not get connection from the pool: {}", e);
+				AppError::DbPoolError(e)
+			})?;
+
+			log::info!("Obtained connection from connection pool");
+
+			conn.execute(
+				"CREATE TABLE IF NOT EXISTS transaction_accounts (
+            blockhash TEXT NOT NULL,
             slot BIGINT NOT NULL,
-            parent_slot BIGINT NOT NULL,
             block_time BIGINT NOT NULL,
-            block_height BIGINT NOT NULL
+            signature TEXT NOT NULL,
+            account TEXT NOT NULL,
+            PRIMARY KEY (blockhash, signature, account)
         )",
-						&[],
-					)
-					.await?;
+				&[],
+			)
+			.await
+			.map_err(|e| {
+				log::error!("Error creating table: {}", e);
+				AppError::DatabaseError(e)
+			})?;
 
-					conn.execute(
-						"INSERT INTO block (
-                previous_blockhash, 
-                blockhash, 
-                slot, 
-                parent_slot, 
-                block_time, 
-                block_height
-            ) VALUES ($1, $2, $3, $4, $5, $6)",
-						&[
-							&data.previous_blockhash,
-							&data.blockhash,
-							&data.slot,
-							&data.parent_slot,
-							&data.block_time,
-							&data.block_height,
-						],
-					)
-					.await?;
-					log::info!("[STORAGE] Block: {} stored", data.blockhash);
+			let transaction = conn.transaction().await.map_err(|e| {
+				log::error!("Error starting transaction: {}", e);
+				AppError::DatabaseError(e)
+			})?;
 
-					Ok::<(), AppError>(())
-				}),
-				tokio::task::spawn(async move {
-					//let conn = db_pool.get().await?;
+			for tx in self {
+				if let Some(tx) = tx {
+					transaction
+						.execute(
+							"INSERT INTO transaction_accounts (
+                            blockhash, 
+                            slot, 
+                            block_time, 
+                            signature,
+                            account
+                        ) VALUES ($1, $2, $3, $4, $5)",
+							&[
+								&tx.blockhash,
+								&tx.slot,
+								&tx.block_time,
+								&tx.signature,
+								&tx.account,
+							],
+						)
+						.await
+						.map_err(|e| {
+							log::error!("Error inserting data: {}", e);
+							AppError::DatabaseError(e)
+						})?;
+				}
+			}
 
-					Ok::<(), AppError>(())
-				})
-			);
-
-			transaction_task??;
-			block_task??;
+			transaction.commit().await.map_err(|e| {
+				log::error!("Error committing transaction: {}", e);
+				AppError::DatabaseError(e)
+			})?;
 
 			Ok(())
 		}))

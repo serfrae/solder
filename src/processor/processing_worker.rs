@@ -47,11 +47,17 @@ where
 				match processing_queue.pop() {
 					Some(data) => {
 						log::info!("[PROCESSING] Received data");
-                        log::info!("[PROCESSING] Queue length: {}", processing_queue.len());
-						let processed = data.process()?;
+						log::info!("[PROCESSING] Queue length: {}", processing_queue.len());
+						let processed = match data.process() {
+							Ok(data) => data,
+							Err(e) => {
+								log::error!("[PROCESSING] Could not process block: {}", e);
+								continue;
+							}
+						};
 						log::info!("[PROCESSING] Done");
 						storage_queue.push(processed);
-                        log::info!("[PROCESSING] Storage queue length: {}", storage_queue.len());
+						log::info!("[PROCESSING] Storage queue length: {}", storage_queue.len());
 					}
 					None => tokio::task::yield_now().await,
 				}

@@ -4,7 +4,7 @@ use solana_client::{pubsub_client::SlotsSubscription, rpc_response::SlotInfo};
 use solana_transaction_status::UiConfirmedBlock;
 use solder::{
 	client::rpc_manager::RpcWorkerManager, client::ws::WsClient, config::load_config,
-	database::create_database_pool, error::Result, models::ProcessedBlockAndTransactions,
+	database::create_database_pool, error::Result, models::Aggregate,
 	processor::ProcessingWorkerManager, storage::StorageWorkerManager,
 };
 use std::sync::Arc;
@@ -17,7 +17,7 @@ async fn main() -> Result<()> {
 	info!("Read config");
 	let proc_config = config.processor.to();
 
-	let storage_queue = Arc::new(SegQueue::<ProcessedBlockAndTransactions>::new());
+	let storage_queue = Arc::new(SegQueue::<Vec<Option<Aggregate>>>::new());
 	let rpc_queue_in = Arc::new(SegQueue::<SlotInfo>::new());
 	let processing_queue = Arc::new(SegQueue::<(SlotInfo, UiConfirmedBlock)>::new());
 
@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
 	);
 
 	info!("Creating storage_wm");
-	let storage_wm = StorageWorkerManager::new(proc_config, db_pool, storage_queue, 5);
+	let storage_wm = StorageWorkerManager::new(proc_config, db_pool, storage_queue, 12);
 
 	info!("Starting subscription");
 	let _ws_handle = tokio::spawn(async move { sol_ws_client.subscribe().await });

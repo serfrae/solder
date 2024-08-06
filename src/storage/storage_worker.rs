@@ -45,9 +45,15 @@ where
 			loop {
 				match storage_queue.pop() {
 					Some(data) => {
-                        log::info!("[STORAGE] Received data");
+						log::info!("[STORAGE] Received data");
 						log::info!("[STORAGE] Queue length: {}", storage_queue.len());
-						data.store(self.db_pool.clone())?.await?;
+						match data.store(self.db_pool.clone())?.await {
+							Ok(..) => continue,
+							Err(e) => {
+								log::error!("Database error: {}", e);
+								continue;
+							}
+						}
 					}
 					None => tokio::task::yield_now().await,
 				}

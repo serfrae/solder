@@ -7,4 +7,3 @@ pub mod processing_worker_manager;
 pub use processable::Processable;
 pub use processing_worker::ProcessingWorker;
 pub use processing_worker_manager::ProcessingWorkerManager;
-
