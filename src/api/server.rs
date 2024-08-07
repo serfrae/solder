@@ -1,5 +1,5 @@
 use {
-	crate::api::handlers::*,
+	crate::{api::handlers::*, database::DatabasePool},
 	anyhow::{anyhow, Result},
 	axum::{
 		http::{
@@ -20,6 +20,7 @@ pub struct Server {
 
 impl Server {
 	pub async fn new(
+        conn_pool: DatabasePool,
 		port: u16,
 	) -> Self {
 		let cors = CorsLayer::new()
@@ -34,9 +35,11 @@ impl Server {
 
 
 		let app = Router::new()
-			.route("/transaction", get(get_transaction_handler))
-			.route("/account", get(get_account_handler))
-			.layer(cors);
+			.route("/api/transaction", get(get_transaction_handler))
+			.route("/api/account", get(get_account_handler))
+            .route("/api/block", get(get_block_handler))
+			.layer(cors)
+            .with_state(conn_pool);
 
 		let addr = format!("0.0.0.0:{}", port);
 		let listener = TcpListener::bind(&addr).await.unwrap();

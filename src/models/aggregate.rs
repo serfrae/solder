@@ -1,4 +1,6 @@
-#[derive(Clone, Debug)]
+use serde::Serialize;
+
+#[derive(Serialize, Clone, Debug)]
 pub struct Aggregate {
 	pub blockhash: String,
 	pub slot: i64,

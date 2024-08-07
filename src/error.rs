@@ -73,6 +73,12 @@ pub enum AppError {
 
 	#[error("Config deserialization error: {0}")]
 	ConfigDeserializationError(#[from] toml::de::Error),
+
+    #[error("Invalid date format")]
+    InvalidDateFormat(String),
+
+    #[error("Invalid request")]
+    InvalidRequest
 }
 
 pub type Result<T> = std::result::Result<T, AppError>;
