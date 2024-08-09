@@ -2,7 +2,7 @@ use log::info;
 use solana_client::{pubsub_client::SlotsSubscription, rpc_response::SlotInfo};
 use solana_transaction_status::UiConfirmedBlock;
 use solder::{
-	api::server::Server, client::rpc_manager::RpcWorkerManager, client::ws::WsClient,
+	api::server::Server, client::rpc_worker::RpcWorkerManager, client::ws::WsClient,
 	config::load_config, database::create_database_pool, error::Result, models::Aggregate,
 	processor::ProcessingWorkerManager, storage::StorageWorkerManager,
 };
@@ -32,14 +32,17 @@ async fn main() -> Result<()> {
 
 	info!("Creating proc_wm");
 	let mut proc_wm = ProcessingWorkerManager::new(
-		proc_config.clone(),
 		proc_rx,
 		storage_tx,
 		config.processor.worker_threads as usize,
 	);
 
 	info!("Creating storage_wm");
-	let storage_wm = StorageWorkerManager::new(db_pool.clone(), storage_rx, 12);
+	let storage_wm = StorageWorkerManager::new(
+		db_pool.clone(),
+		storage_rx,
+		config.storage.worker_threads as usize,
+	);
 
 	info!("Creating server");
 	let server = Server::new(db_pool.clone(), config.server.port);

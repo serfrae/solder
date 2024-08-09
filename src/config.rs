@@ -6,11 +6,11 @@ use toml;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
+	pub client: ClientConfig,
+	pub processor: WorkerConfig,
+	pub storage: WorkerConfig,
 	pub database: DatabaseConfig,
 	pub server: ServerConfig,
-	pub processor: ProcessorConfig,
-	pub storage: StorageConfig,
-	pub client: ClientConfig,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -38,6 +38,11 @@ impl ClientConfig {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct WorkerConfig {
+	pub worker_threads: u32,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct DatabaseConfig {
 	pub user: String,
 	pub password: String,
@@ -49,24 +54,9 @@ pub struct DatabaseConfig {
 
 #[derive(Debug, Deserialize)]
 pub struct ServerConfig {
-	pub host: String,
 	pub port: u16,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct ProcessorConfig {
-	pub worker_threads: u32,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct RpcConfig {
-	pub worker_threads: u32,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct StorageConfig {
-	pub worker_threads: u32,
-}
 
 pub fn load_config(file_path: &str) -> Result<Config> {
 	let mut file = File::open(file_path)?;
