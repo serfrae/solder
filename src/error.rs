@@ -78,7 +78,7 @@ pub enum AppError {
     InvalidDateFormat(String),
 
     #[error("Invalid request")]
-    InvalidRequest
+    InvalidRequest,
 }
 
 pub type Result<T> = std::result::Result<T, AppError>;

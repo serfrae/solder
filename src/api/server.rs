@@ -11,6 +11,7 @@ use {
 	},
 	tokio::net::TcpListener,
 	tower_http::cors::{Any, CorsLayer},
+    std::sync::Arc,
 };
 
 pub struct Server {
@@ -18,13 +19,15 @@ pub struct Server {
 	listener: TcpListener,
 }
 
+#[derive(Clone)]
+pub struct AppState {
+    pub pool: DatabasePool,
+}
+
 impl Server {
-	pub async fn new(
-        conn_pool: DatabasePool,
-		port: u16,
-	) -> Self {
+	pub async fn new(conn_pool: DatabasePool, port: u16) -> Self {
 		let cors = CorsLayer::new()
-			.allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+			.allow_methods([Method::GET, Method::OPTIONS])
 			.allow_headers([
 				CONTENT_TYPE,
 				AUTHORIZATION,
@@ -33,13 +36,16 @@ impl Server {
 			])
 			.allow_origin(Any);
 
+        let state = Arc::new(AppState { pool: conn_pool });
 
 		let app = Router::new()
-			.route("/api/transaction", get(get_transaction_handler))
-			.route("/api/account", get(get_account_handler))
-            .route("/api/block", get(get_block_handler))
+            .route("/", get(root))
+			.route("/api/transaction", get(transaction_handler))
+			.route("/api/account", get(account_handler))
+			.route("/api/block", get(block_handler))
+			.fallback(handler_404)
 			.layer(cors)
-            .with_state(conn_pool);
+			.with_state(state);
 
 		let addr = format!("0.0.0.0:{}", port);
 		let listener = TcpListener::bind(&addr).await.unwrap();
