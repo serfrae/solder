@@ -2,18 +2,16 @@ use super::Subscribable;
 use crate::config::ClientConfig;
 use crate::error::Result;
 use crossbeam::channel::{bounded, Receiver};
-use crossbeam::queue::SegQueue;
 use log::{error, info};
-use std::sync::Arc;
 
 pub struct WsClient<T: Subscribable> {
 	pub config: ClientConfig,
-	pub queue: Arc<SegQueue<T::Output>>,
+	pub rpc_tx: crossbeam_channel::Sender<T::Output>,
 }
 
 impl<T: Subscribable> WsClient<T> {
-	pub fn new(config: ClientConfig, queue: Arc<SegQueue<T::Output>>) -> Self {
-		Self { config, queue }
+	pub fn new(config: ClientConfig, rpc_tx: crossbeam_channel::Sender<T::Output>) -> Self {
+		Self { config, rpc_tx }
 	}
 
 	pub async fn subscribe(&self) -> Result<()> {
@@ -22,9 +20,9 @@ impl<T: Subscribable> WsClient<T> {
 
 		let (stop_tx, stop_rx) = bounded::<()>(1);
 
-		let queue_clone = self.queue.clone();
+		let rpc_tx = self.rpc_tx.clone();
 		tokio::task::spawn_blocking(move || {
-			Self::receive_loop(rx, queue_clone, stop_rx);
+			Self::receive_loop(rpc_tx, rx, stop_rx);
 		});
 
 		tokio::signal::ctrl_c().await?;
@@ -35,8 +33,8 @@ impl<T: Subscribable> WsClient<T> {
 	}
 
 	fn receive_loop(
+		rpc_tx: crossbeam_channel::Sender<T::Output>,
 		rx: Receiver<T::Output>,
-		queue: Arc<SegQueue<T::Output>>,
 		stop_rx: Receiver<()>,
 	) {
 		loop {
@@ -44,8 +42,13 @@ impl<T: Subscribable> WsClient<T> {
 				recv(rx) -> result => {
 					match result {
 						Ok(response) => {
-							info!("Received data");
-							queue.push(response);
+							match rpc_tx.send(response) {
+							Ok(_) => continue,
+							Err(e) => {
+								error!("Error sending data: {}", e);
+								continue
+							}
+						};
 						}
 						Err(e) => {
 							error!("Subscription channel closed: {}", e);

@@ -1,9 +1,7 @@
 use crate::error::Result;
-use crate::worker::{WorkerManagerConfig, WorkerMode, WorkerScalingConfig};
 use serde::Deserialize;
 use std::fs::File;
 use std::io::Read;
-use std::time::Duration;
 use toml;
 
 #[derive(Debug, Deserialize)]
@@ -11,6 +9,7 @@ pub struct Config {
 	pub database: DatabaseConfig,
 	pub server: ServerConfig,
 	pub processor: ProcessorConfig,
+	pub storage: StorageConfig,
 	pub client: ClientConfig,
 }
 
@@ -56,28 +55,17 @@ pub struct ServerConfig {
 
 #[derive(Debug, Deserialize)]
 pub struct ProcessorConfig {
-	pub worker_mode: String,
 	pub worker_threads: u32,
-	pub min_workers: u16,
-	pub interval: u64,
-	pub scale_up_threshold: u64,
-	pub scale_down_threshold: u64,
 }
 
-impl ProcessorConfig {
-	pub fn to(&self) -> WorkerManagerConfig {
-		let mode = WorkerMode::from_str(self.worker_mode.as_str());
-		WorkerManagerConfig {
-			mode,
-			scale_config: Some(WorkerScalingConfig {
-				min_workers: self.min_workers as usize,
-				max_workers: self.worker_threads as usize,
-				interval: Duration::from_millis(self.interval),
-				scale_up_threshold: self.scale_up_threshold as usize,
-				scale_down_threshold: self.scale_down_threshold as usize,
-			}),
-		}
-	}
+#[derive(Debug, Deserialize)]
+pub struct RpcConfig {
+	pub worker_threads: u32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StorageConfig {
+	pub worker_threads: u32,
 }
 
 pub fn load_config(file_path: &str) -> Result<Config> {

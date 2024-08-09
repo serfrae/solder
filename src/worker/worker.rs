@@ -6,6 +6,14 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
+pub trait WorkerManager {
+	fn spawn_worker(&mut self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>>;
+
+	fn shutdown_worker(&mut self, handle: WorkerHandle) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>>;
+
+	fn shutdown_all(&mut self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>>;
+}
+
 pub trait Worker: Send + 'static {
 	fn run(self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'static>>;
 }

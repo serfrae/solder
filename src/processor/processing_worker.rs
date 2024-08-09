@@ -1,18 +1,118 @@
 use super::Processable;
 use crate::error::Result;
 use crate::pool::ThreadPool;
-use crate::worker::{Worker, WorkerHandle};
-use crossbeam::queue::SegQueue;
+use crate::worker::{Worker, WorkerHandle, WorkerManager};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+
+pub struct ProcessingWorkerManager<T>
+where
+	T: Processable,
+	T::Output: Send,
+{
+	pool: Arc<ThreadPool>,
+	workers: Vec<WorkerHandle>,
+	proc_rx: crossbeam_channel::Receiver<T>,
+    storage_tx: crossbeam_channel::Sender<T::Output>,
+}
+
+impl<T> ProcessingWorkerManager<T>
+where
+	T: Processable,
+	T::Output: Send + 'static,
+{
+	pub fn new(
+        proc_rx: crossbeam_channel::Receiver<T>,
+        storage_tx: crossbeam_channel::Sender<T::Output>,
+		worker_threads: usize,
+	) -> Self {
+		let pool = Arc::new(ThreadPool::new(worker_threads));
+
+		Self {
+			pool,
+			workers: Vec::with_capacity(worker_threads),
+			proc_rx,
+			storage_tx,
+		}
+	}
+
+	pub async fn initialize(&mut self) {
+		log::info!("Initialiazing minimum workers");
+		for i in 0..self.workers.capacity() {
+			log::info!("Initiailizing worker: {}", i);
+			self.spawn_worker().await;
+			log::info!("Worker initialized");
+		}
+	}
+
+	pub async fn run(&mut self) -> Result<()> {
+		self.initialize().await;
+		let ctrl_c = tokio::spawn(async {
+			tokio::signal::ctrl_c()
+				.await
+				.expect("Failed to listen for Ctrl+C");
+			log::info!("Received Ctrl+C signal. Initiating shutdown...");
+		});
+
+		let _ = tokio::try_join!(ctrl_c);
+
+		self.shutdown_all().await?;
+
+		Ok(())
+	}
+}
+
+impl<T> WorkerManager for ProcessingWorkerManager<T>
+where
+	T: Processable + 'static,
+	T::Output: Send + 'static,
+{
+	fn spawn_worker(&mut self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+		Box::pin(async move {
+			let worker = ProcessingWorker::new(
+				self.proc_rx.clone(),
+				self.storage_tx.clone(),
+				Arc::clone(&self.pool),
+			);
+
+			self.workers.push(worker);
+		})
+	}
+
+	fn shutdown_worker(
+		&mut self,
+		handle: WorkerHandle,
+	) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
+		Box::pin(async move {
+			handle.shutdown().await?;
+			Ok(())
+		})
+	}
+
+	fn shutdown_all(&mut self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
+		Box::pin(async move {
+			let mut shutdown_tasks = Vec::new();
+
+			for handle in self.workers.drain(..) {
+				shutdown_tasks.push(handle.shutdown());
+			}
+
+			for task in shutdown_tasks {
+				task.await?
+			}
+
+			Ok(())
+		})
+	}
+}
 
 pub struct ProcessingWorker<T: Processable>
 where
 	T::Output: Send,
 {
-	processing_queue: Arc<SegQueue<T>>,
-	storage_queue: Arc<SegQueue<T::Output>>,
+	proc_rx: crossbeam_channel::Receiver<T>,
+	storage_tx: crossbeam_channel::Sender<T::Output>,
 }
 
 impl<T: Processable> ProcessingWorker<T>
@@ -20,14 +120,14 @@ where
 	T::Output: Send + 'static,
 {
 	pub fn new(
-		processing_queue: Arc<SegQueue<T>>,
-		storage_queue: Arc<SegQueue<T::Output>>,
+		proc_rx: crossbeam_channel::Receiver<T>,
+		storage_tx: crossbeam_channel::Sender<T::Output>,
 		thread_pool: Arc<ThreadPool>,
 	) -> WorkerHandle {
 		WorkerHandle::new(
 			Self {
-				processing_queue,
-				storage_queue,
+				proc_rx,
+				storage_tx,
 			},
 			thread_pool,
 		)
@@ -39,15 +139,11 @@ where
 	T::Output: Send + 'static,
 {
 	fn run(self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'static>> {
-		let processing_queue = self.processing_queue.clone();
-		let storage_queue = self.storage_queue.clone();
-
 		Box::pin(async move {
 			loop {
-				match processing_queue.pop() {
-					Some(data) => {
-						log::info!("[PROCESSING] Received data");
-						log::info!("[PROCESSING] Queue length: {}", processing_queue.len());
+				match self.proc_rx.recv() {
+					Ok(data) => {
+						log::debug!("[PROCESSING] Queue length: {}", self.proc_rx.len());
 						let processed = match data.process() {
 							Ok(data) => data,
 							Err(e) => {
@@ -55,11 +151,18 @@ where
 								continue;
 							}
 						};
-						log::info!("[PROCESSING] Done");
-						storage_queue.push(processed);
-						log::info!("[PROCESSING] Storage queue length: {}", storage_queue.len());
+						match self.storage_tx.send(processed) {
+							Ok(..) => continue,
+							Err(e) => {
+								log::error!("Error sending to storage worker: {}", e);
+								continue;
+							}
+						}
 					}
-					None => tokio::task::yield_now().await,
+					Err(e) => {
+						log::error!("Processing error: {}", e);
+						tokio::task::yield_now().await;
+					}
 				}
 			}
 		})

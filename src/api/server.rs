@@ -11,17 +11,11 @@ use {
 	},
 	tokio::net::TcpListener,
 	tower_http::cors::{Any, CorsLayer},
-    std::sync::Arc,
 };
 
 pub struct Server {
 	app: Router,
 	listener: TcpListener,
-}
-
-#[derive(Clone)]
-pub struct AppState {
-    pub pool: DatabasePool,
 }
 
 impl Server {
@@ -36,16 +30,14 @@ impl Server {
 			])
 			.allow_origin(Any);
 
-        let state = Arc::new(AppState { pool: conn_pool });
-
 		let app = Router::new()
-            .route("/", get(root))
+			.route("/", get(root))
 			.route("/api/transaction", get(transaction_handler))
 			.route("/api/account", get(account_handler))
 			.route("/api/block", get(block_handler))
 			.fallback(handler_404)
 			.layer(cors)
-			.with_state(state);
+			.with_state(conn_pool);
 
 		let addr = format!("0.0.0.0:{}", port);
 		let listener = TcpListener::bind(&addr).await.unwrap();
@@ -54,8 +46,20 @@ impl Server {
 	}
 
 	pub async fn run(self) -> Result<()> {
+		let shutdown_signal = async {
+			tokio::signal::ctrl_c()
+				.await
+				.expect("Failed to install Ctrl+C handler");
+			log::info!("\nReceived shutdown signal. Shutting down gracefully...");
+		};
+
 		axum::serve(self.listener, self.app)
+			.with_graceful_shutdown(shutdown_signal)
 			.await
-			.map_err(|e| anyhow!("Could not start server: {}", e))
+			.map_err(|e| anyhow!("Could not start server: {}", e))?;
+
+		log::info!("Server has shutdown");
+
+		Ok(())
 	}
 }

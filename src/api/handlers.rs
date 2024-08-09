@@ -1,5 +1,5 @@
 use {
-	crate::{api::query::*, api::server::AppState, database::DatabasePool},
+	crate::{api::query::*, database::DatabasePool},
 	axum::{
 		extract::{Query, State},
 		http::StatusCode,
@@ -7,8 +7,7 @@ use {
 		Json,
 	},
 	serde::Serialize,
-	serde_json::{json, Value},
-	std::sync::Arc,
+	serde_json::Value,
 };
 
 #[derive(Serialize, Clone, Debug)]
@@ -31,53 +30,25 @@ pub(crate) async fn handler_404() -> impl IntoResponse {
 	)
 }
 
-fn test() -> impl IntoResponse {
-	let mut responses: Vec<Aggregate> = Vec::new();
-	responses.push(Aggregate {
-		blockhash: "asdads".to_string(),
-		slot: 123,
-		signature: "12312".to_string(),
-		account: "asdasda".to_string(),
-		block_time: 1231231,
-	});
-    (StatusCode::OK, Json(json!(responses)))
-}
-
 pub async fn transaction_handler(
-	State(_state): State<Arc<AppState>>,
-	Query(_params): Query<TransactionQueryParams>,
+	State(pool): State<DatabasePool>,
+	Query(params): Query<TransactionQueryParams>,
 ) -> impl IntoResponse {
-	let mut responses: Vec<Aggregate> = Vec::new();
-	responses.push(Aggregate {
-		blockhash: "asdads".to_string(),
-		slot: 123,
-		signature: "12312".to_string(),
-		account: "asdasda".to_string(),
-		block_time: 1231231,
-	});
-	if responses.is_empty() {
-		(
-			StatusCode::INTERNAL_SERVER_ERROR,
-			Json(json!({"error": "asodasldh"})),
-		)
-	} else {
-		(StatusCode::OK, Json(json!(responses)))
-	}
-	//handle_query(pool, params).await
+	handle_query(pool.clone(), params).await
 }
 
 pub async fn account_handler(
-	State(state): State<Arc<AppState>>,
+	State(pool): State<DatabasePool>,
 	Query(params): Query<AccountQueryParams>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
-	handle_query(state.pool.clone(), params).await
+	handle_query(pool.clone(), params).await
 }
 
 pub async fn block_handler(
-	State(state): State<Arc<AppState>>,
+	State(pool): State<DatabasePool>,
 	Query(params): Query<BlockQueryParams>,
 ) -> impl IntoResponse {
-	handle_block_query(state.pool.clone(), params).await
+	handle_block_query(pool.clone(), params).await
 }
 
 async fn handle_query<T>(
@@ -88,7 +59,7 @@ where
 	T: Into<QueryParams>,
 {
 	match execute_query(pool, params.into()).await {
-		Ok(transactions) => Ok((StatusCode::OK, Json(json!(transactions)))),
+		Ok(transactions) => Ok((StatusCode::OK, Json(transactions))),
 		Err(e) => Err(e),
 	}
 }

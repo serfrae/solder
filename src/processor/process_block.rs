@@ -1,7 +1,7 @@
 use super::Processable;
 use crate::{
 	error::{AppError, Result},
-	models::{AccountKeys, Aggregate, FromMsg, TryDecode},
+	models::{Aggregate, FromMsg, TryDecode},
 };
 use solana_client::rpc_response::SlotInfo;
 use solana_transaction_status::{
@@ -13,7 +13,6 @@ use log::{error, info};
 impl Processable for (SlotInfo, UiConfirmedBlock) {
 	type Output = Vec<Option<Aggregate>>;
 	fn process(&self) -> Result<Self::Output> {
-		info!("Processing transactions...");
 		let block_time = self.1.block_time.ok_or(AppError::NoData)?;
 		let transaction_data: Vec<Option<Aggregate>> = self
 			.1

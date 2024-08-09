@@ -1,19 +1,14 @@
 pub mod aggregate;
-pub mod log;
 
 pub use aggregate::*;
-pub use log::*;
 
 use crate::error::{AppError, Result};
 use solana_transaction_status::{
-	parse_accounts::ParsedAccount, EncodedTransaction, EncodedTransactionWithStatusMeta, UiMessage,
-	UiTransaction,
+	EncodedTransaction, EncodedTransactionWithStatusMeta, UiMessage, UiTransaction,
 };
 
 pub type BlockUpdate =
 	solana_client::rpc_response::Response<solana_client::rpc_response::RpcBlockUpdate>;
-
-pub type AccountKeys = Vec<ParsedAccount>;
 
 pub trait TryDecode<T>: Sized {
 	type Error;

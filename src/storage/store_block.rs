@@ -19,25 +19,6 @@ impl Storable for Vec<Option<Aggregate>> {
 				AppError::DbPoolError(e)
 			})?;
 
-			log::info!("Obtained connection from connection pool");
-
-			conn.execute(
-				"CREATE TABLE IF NOT EXISTS transaction_accounts (
-            blockhash TEXT NOT NULL,
-            slot BIGINT NOT NULL,
-            block_time BIGINT NOT NULL,
-            signature TEXT NOT NULL,
-            account TEXT NOT NULL,
-            PRIMARY KEY (blockhash, signature, account)
-        )",
-				&[],
-			)
-			.await
-			.map_err(|e| {
-				log::error!("Error creating table: {}", e);
-				AppError::DatabaseError(e)
-			})?;
-
 			let transaction = conn.transaction().await.map_err(|e| {
 				log::error!("Error starting transaction: {}", e);
 				AppError::DatabaseError(e)
