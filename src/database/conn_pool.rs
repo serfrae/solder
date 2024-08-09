@@ -6,6 +6,7 @@ use tokio_postgres::{Config, NoTls};
 
 pub type DatabasePool = Arc<Pool<PostgresConnectionManager<NoTls>>>;
 
+/// Connection pool for database, wrapped in an Arc as this is shared between multiple processes
 pub async fn create_database_pool(config: &DatabaseConfig) -> Result<DatabasePool> {
 	let mut db_config = Config::new();
 	db_config

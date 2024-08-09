@@ -17,6 +17,7 @@ pub struct Config {
 pub struct ClientConfig {
 	pub url: String,
 	pub api_key: String,
+    pub worker_threads: u32,
 }
 
 impl ClientConfig {

@@ -9,6 +9,7 @@ use solana_client::{
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_transaction_status::{TransactionDetails, UiTransactionEncoding};
 
+/// Not used - Block subscription is not available on free plans
 impl Subscribable for BlockSubscription {
 	type Output = BlockUpdate;
 

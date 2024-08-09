@@ -1,50 +1,44 @@
-use crate::{database::DatabasePool, models::Aggregate};
+use crate::database::DatabasePool;
 use axum::{http::StatusCode, Json};
 use chrono::{NaiveDateTime, TimeZone, Utc};
 use serde::Deserialize;
 use serde_json::{json, Value};
+use tokio_postgres::row::Row;
 
+/// Type alias for code cleanliness
+type QueryParams = Box<dyn tokio_postgres::types::ToSql + Sync + Send>;
+
+/// Enum to define the types of query the server can receive and their respectie parameters
 #[derive(Deserialize)]
-pub struct TransactionQueryParams {
-	signature: Option<String>,
-	from: Option<String>, // YYYY-MM-DD
-	to: Option<String>,   // YYYY-MM-DD
+pub enum QueryType {
+	Transaction(String),
+	Block(String),
+	Slot(i64),
+	Account {
+		pubkey: String,
+		from: Option<String>,
+		to: Option<String>,
+	},
 }
 
+/// Optional parameters for `/api/account/{pubkey}`, `from` and `to` should be provided
+/// in YYYY-MM-DD format.
+///
+/// If `from` is not provided, query will retrieve all data from the beginning of data collection
+/// till `to`.
+/// If `to` is not provided, query will retrieve all data from `from` till now.
+/// If neither parameter is provided, all data regarding an account is retrieved.
 #[derive(Deserialize)]
 pub struct AccountQueryParams {
-	pubkey: Option<String>,
-	from: Option<String>, // YYYY-MM-DD
-	to: Option<String>,   // YYYY-MM-DD
+	pub from: Option<String>, // YYYY-MM-DD
+	pub to: Option<String>,   // YYYY-MM-DD
 }
 
-#[derive(Deserialize)]
-pub struct BlockQueryParams {
-	hash: Option<String>,
-	slot: Option<i64>,
-}
-
-pub enum QueryParams {
-	Transaction(TransactionQueryParams),
-	Account(AccountQueryParams),
-}
-
-impl From<TransactionQueryParams> for QueryParams {
-	fn from(params: TransactionQueryParams) -> Self {
-		QueryParams::Transaction(params)
-	}
-}
-
-impl From<AccountQueryParams> for QueryParams {
-	fn from(params: AccountQueryParams) -> Self {
-		QueryParams::Account(params)
-	}
-}
-
+/// Builds and executes a database query
 pub async fn execute_query(
 	pool: DatabasePool,
-	params: QueryParams,
-) -> Result<Vec<Aggregate>, (StatusCode, Json<Value>)> {
+	query_type: QueryType,
+) -> Result<Vec<Row>, (StatusCode, Json<Value>)> {
 	let client = pool.get().await.map_err(|e| {
 		log::error!("{}", e);
 		(
@@ -53,14 +47,14 @@ pub async fn execute_query(
 		)
 	})?;
 
-	let (base_query, query_params) = build_query(params);
+	let (base_query, query_params) = build_query(query_type);
 
 	let query_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = query_params
 		.iter()
 		.map(|p| p.as_ref() as &(dyn tokio_postgres::types::ToSql + Sync))
 		.collect();
 
-	let rows = client
+	Ok(client
 		.query(&base_query, &query_refs[..])
 		.await
 		.map_err(|e| {
@@ -69,130 +63,46 @@ pub async fn execute_query(
 				StatusCode::INTERNAL_SERVER_ERROR,
 				Json(json!({"error": format!("Failed to get database connection: {}", e)})),
 			)
-		})?;
-
-	let transactions: Vec<Aggregate> = rows
-		.into_iter()
-		.map(|row| Aggregate {
-			blockhash: row.get("blockhash"),
-			slot: row.get("slot"),
-			block_time: row.get("block_time"),
-			signature: row.get("signature"),
-			account: row.get("account"),
-		})
-		.collect();
-
-	Ok(transactions)
+		}))?
 }
 
-pub async fn execute_block_query(
-	pool: DatabasePool,
-	params: BlockQueryParams,
-) -> Result<Vec<Aggregate>, (StatusCode, Json<Value>)> {
-	let client = pool.get().await.map_err(|e| {
-		log::error!("{}", e);
-		(
-			StatusCode::INTERNAL_SERVER_ERROR,
-			Json(json!({"error": format!("Failed to get database connection: {}", e)})),
-		)
-	})?;
-
-	let (base_query, query_params) = build_block_query(params);
-
-	let query_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = query_params
-		.iter()
-		.map(|p| p.as_ref() as &(dyn tokio_postgres::types::ToSql + Sync))
-		.collect();
-
-	let rows = client
-		.query(&base_query, &query_refs[..])
-		.await
-		.map_err(|e| {
-			log::error!("{}", e);
-			(
-				StatusCode::INTERNAL_SERVER_ERROR,
-				Json(json!({ "error": format!("Error querying transactions: {}", e) })),
-			)
-		})?;
-
-	let transactions: Vec<Aggregate> = rows
-		.into_iter()
-		.map(|row| Aggregate {
-			blockhash: row.get("blockhash"),
-			slot: row.get("slot"),
-			block_time: row.get("block_time"),
-			signature: row.get("signature"),
-			account: row.get("account"),
-		})
-		.collect();
-
-	Ok(transactions)
-}
-
-fn build_query(
-	params: QueryParams,
-) -> (
-	String,
-	Vec<Box<dyn tokio_postgres::types::ToSql + Sync + Send>>,
-) {
+/// Build database query from query type, for types `QueryType::Transaction`, `QueryType::Slot`,
+/// and `QueryType::Block` the query is built solely from the Path. For `QueryType::Account` 
+/// additional time parameters may be passed in. TODO: Pagination
+fn build_query(query_type: QueryType) -> (String, Vec<QueryParams>) {
 	let mut base_query = "SELECT * FROM transaction_accounts WHERE".to_string();
-	let mut query_params: Vec<Box<dyn tokio_postgres::types::ToSql + Sync + Send>> = Vec::new();
+	let mut query_params: Vec<QueryParams> = Vec::new();
 
-	match params {
-		QueryParams::Transaction(params) => {
-			if let Some(signature) = &params.signature {
-				base_query.push_str(" signature = $1");
-				query_params.push(Box::new(signature.clone()));
-			} else {
-				add_date_conditions(&mut base_query, &mut query_params, &params.from, &params.to);
-			}
+	match query_type {
+		QueryType::Transaction(signature) => {
+			base_query.push_str(" signature = $1");
+			query_params.push(Box::new(signature) as QueryParams);
 		}
-		QueryParams::Account(params) => {
-			if let Some(pubkey) = &params.pubkey {
-				base_query.push_str(" account = $1");
-				query_params.push(Box::new(pubkey.clone()));
-			} else {
-				add_date_conditions(&mut base_query, &mut query_params, &params.from, &params.to);
-			}
+		QueryType::Slot(slot) => {
+			base_query.push_str(" slot = $1");
+			query_params.push(Box::new(slot) as QueryParams);
+		}
+		QueryType::Block(blockhash) => {
+			base_query.push_str(" blockhash = $1");
+			query_params.push(Box::new(blockhash) as QueryParams);
+		}
+		QueryType::Account { pubkey, from, to } => {
+			base_query.push_str(" account = $1");
+			query_params.push(Box::new(pubkey) as QueryParams);
+			add_date_conditions(&mut base_query, &mut query_params, &from, &to);
 		}
 	}
 
-	if query_params.is_empty() {
-		base_query.push_str(" TRUE");
-	}
-
-	base_query.push_str(" ORDER BY slot ASC");
+	base_query.push_str(" ORDER BY signature ASC");
 
 	(base_query, query_params)
 }
 
-fn build_block_query(
-	params: BlockQueryParams,
-) -> (
-	String,
-	Vec<Box<dyn tokio_postgres::types::ToSql + Sync + Send>>,
-) {
-	let mut base_query = "SELECT * FROM transaction_accounts WHERE".to_string();
-	let mut query_params: Vec<Box<dyn tokio_postgres::types::ToSql + Sync + Send>> = Vec::new();
-
-	if let Some(hash) = &params.hash {
-		base_query.push_str(" blockhash = $1");
-		query_params.push(Box::new(hash.clone()));
-	} else if let Some(slot) = &params.slot {
-		base_query.push_str(" slot = $1");
-		query_params.push(Box::new(*slot));
-	} else {
-		base_query.push_str(" FALSE");
-	}
-
-	base_query.push_str(" ORDER BY slot ASC");
-
-	(base_query, query_params)
-}
-
+/// Converts a String date of format YYYY-MM-DD to Unix time and inserts it into a query
+/// currently only supported for accounts
 fn add_date_conditions(
 	base_query: &mut String,
-	query_params: &mut Vec<Box<dyn tokio_postgres::types::ToSql + Sync + Send>>,
+	query_params: &mut Vec<QueryParams>,
 	from: &Option<String>,
 	to: &Option<String>,
 ) {
@@ -209,6 +119,7 @@ fn add_date_conditions(
 	}
 }
 
+/// Parses optional date
 fn parse_date_opt(date_str: &Option<String>) -> Option<i64> {
 	if let Some(date_str) = date_str {
 		let naive_date = NaiveDateTime::parse_from_str(&date_str, "%Y-%m-%d").ok()?;
@@ -217,4 +128,9 @@ fn parse_date_opt(date_str: &Option<String>) -> Option<i64> {
 	} else {
 		None
 	}
+}
+
+#[cfg(test)]
+mod tests {
+    
 }

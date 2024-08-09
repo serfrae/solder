@@ -6,6 +6,9 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+/// Generic workers to process a `Processable` type. As crossbeam channels are unbounded,
+/// enough workers should be in the worker pool or to retrieve tasks from the receiving channel.
+/// A memory leak can occur if there are too few workers as the crossbeam channels are unbounded
 pub struct ProcessingWorkerManager<T>
 where
 	T: Processable,
@@ -14,7 +17,7 @@ where
 	pool: Arc<ThreadPool>,
 	workers: Vec<WorkerHandle>,
 	proc_rx: crossbeam_channel::Receiver<T>,
-    storage_tx: crossbeam_channel::Sender<T::Output>,
+	storage_tx: crossbeam_channel::Sender<T::Output>,
 }
 
 impl<T> ProcessingWorkerManager<T>
@@ -23,8 +26,8 @@ where
 	T::Output: Send + 'static,
 {
 	pub fn new(
-        proc_rx: crossbeam_channel::Receiver<T>,
-        storage_tx: crossbeam_channel::Sender<T::Output>,
+		proc_rx: crossbeam_channel::Receiver<T>,
+		storage_tx: crossbeam_channel::Sender<T::Output>,
 		worker_threads: usize,
 	) -> Self {
 		let pool = Arc::new(ThreadPool::new(worker_threads));
@@ -134,6 +137,7 @@ where
 	}
 }
 
+/// Run loop for `ProcessorWorker`, if errors are thrown, log them an continue to next loop
 impl<T: Processable> Worker for ProcessingWorker<T>
 where
 	T::Output: Send + 'static,
@@ -148,6 +152,7 @@ where
 							Ok(data) => data,
 							Err(e) => {
 								log::error!("[PROCESSING] Could not process block: {}", e);
+								tokio::task::yield_now().await;
 								continue;
 							}
 						};
@@ -155,7 +160,7 @@ where
 							Ok(..) => continue,
 							Err(e) => {
 								log::error!("Error sending to storage worker: {}", e);
-								continue;
+								tokio::task::yield_now().await;
 							}
 						}
 					}

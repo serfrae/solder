@@ -7,6 +7,7 @@ use solana_transaction_status::{TransactionDetails, UiConfirmedBlock};
 use std::future::Future;
 use std::pin::Pin;
 
+/// Retrieve block from a slot number and outputs the a tuple of `SlotInfo` and `UiConfirmedBlock`
 impl Gettable for SlotInfo {
 	type Output = (Self, UiConfirmedBlock);
 	fn get(

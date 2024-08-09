@@ -3,13 +3,15 @@ use crate::database::DatabasePool;
 use crate::error::Result;
 use crate::pool::ThreadPool;
 use crate::worker::{Worker, WorkerHandle, WorkerManager};
+use bb8::Pool;
+use bb8_postgres::PostgresConnectionManager;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use bb8::Pool;
-use bb8_postgres::PostgresConnectionManager;
 use tokio_postgres::NoTls;
 
+/// Manages the pool of `StorageWorker`s crossbeam channel is cloned to every
+/// worker so that they can pull the next block of transactions when they are done with their task.
 pub struct StorageWorkerManager<T>
 where
 	T: Storable + 'static,
@@ -39,6 +41,7 @@ where
 		}
 	}
 
+	/// Initialise the storage workers
 	pub async fn initialize(&mut self) {
 		log::info!("Initialiazing storage workers");
 		for i in 0..self.workers.capacity() {
@@ -47,6 +50,7 @@ where
 		}
 	}
 
+    /// Initialises all workers
 	pub async fn run(&mut self) -> Result<()> {
 		self.initialize().await;
 		let ctrl_c = tokio::spawn(async {
@@ -68,6 +72,7 @@ impl<T> WorkerManager for StorageWorkerManager<T>
 where
 	T: Storable + 'static,
 {
+    /// Spawns storage workers and stores their handles in `self.workers`
 	fn spawn_worker(&mut self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
 		Box::pin(async move {
 			let worker = StorageWorker::new(
@@ -80,6 +85,7 @@ where
 		})
 	}
 
+    /// Shutdown a worker using its handle
 	fn shutdown_worker(
 		&mut self,
 		handle: WorkerHandle,
@@ -90,6 +96,7 @@ where
 		})
 	}
 
+    /// Shutdown all workers by iterating through their join handles
 	fn shutdown_all(&mut self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
 		Box::pin(async move {
 			let mut shutdown_tasks = Vec::new();
@@ -107,6 +114,11 @@ where
 	}
 }
 
+/// Receives messages on a crossbeam channel, crossbeam channels are meant to be thread safe
+/// and should not require locking. Each worker will pull a task off the channel as soon as it
+/// arrives provided there are idle workers/enough workers in the pool. If enough workers aren't
+/// defined or database writes are slow, this can cause a memory leak as the crossbeam channel
+/// is unbounded.
 pub struct StorageWorker<T>
 where
 	T: Storable,
@@ -138,6 +150,7 @@ impl<T> Worker for StorageWorker<T>
 where
 	T: Storable + Send + 'static,
 {
+    /// Runs the receiver loop storing data whenever it is received from the channel
 	fn run(self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'static>> {
 		Box::pin(async move {
 			loop {

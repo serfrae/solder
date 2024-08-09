@@ -18,6 +18,7 @@ pub struct Server {
 	listener: TcpListener,
 }
 
+/// Axum server, axum uses its own worker pool so no need to implement our own here.
 impl Server {
 	pub async fn new(conn_pool: DatabasePool, port: u16) -> Self {
 		let cors = CorsLayer::new()
@@ -32,9 +33,10 @@ impl Server {
 
 		let app = Router::new()
 			.route("/", get(root))
-			.route("/api/transaction", get(transaction_handler))
-			.route("/api/account", get(account_handler))
-			.route("/api/block", get(block_handler))
+			.route("/api/transaction/:signature", get(transaction_handler))
+			.route("/api/account/:pubkey", get(account_handler))
+			.route("/api/block/:blockhash", get(block_handler))
+            .route("/api/slot/:slot_number", get(slot_handler))
 			.fallback(handler_404)
 			.layer(cors)
 			.with_state(conn_pool);
@@ -45,6 +47,7 @@ impl Server {
 		Server { app, listener }
 	}
 
+    /// Run with a ctrl+c shutdown signal for graceful shutdowns
 	pub async fn run(self) -> Result<()> {
 		let shutdown_signal = async {
 			tokio::signal::ctrl_c()

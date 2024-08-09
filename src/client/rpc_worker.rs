@@ -8,6 +8,11 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+/// Manages the pool of `RpcWorkers`s. Crossbeam channel is cloned to every
+/// worker to continuously retrieve blocks without creating a backlog. 
+/// On a free plan with Helius, it takes longer than 400ms to retrieve one block, testing on my
+/// connection/laptop requires five(5) rpc workers to ensure no backlog of requests. Backlogging
+/// requests can lead to a memory leak as the crossbeam channels are unbounded.
 pub struct RpcWorkerManager<T>
 where
 	T: Gettable,

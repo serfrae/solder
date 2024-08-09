@@ -4,6 +4,8 @@ use crate::error::Result;
 use crossbeam::channel::{bounded, Receiver};
 use log::{error, info};
 
+/// Websocket client to listen for updates is generic over the trait `Subscribable` for reuse and
+/// extensibility ctrl+c handler implemented for graceful shutdown
 pub struct WsClient<T: Subscribable> {
 	pub config: ClientConfig,
 	pub rpc_tx: crossbeam_channel::Sender<T::Output>,
@@ -14,6 +16,7 @@ impl<T: Subscribable> WsClient<T> {
 		Self { config, rpc_tx }
 	}
 
+    /// Starts the websocket subscription with ctrl+c for shutdown
 	pub async fn subscribe(&self) -> Result<()> {
 		let (_sub, rx) = T::subscribe(&self.config)?;
 		info!("Listening for updates...");
@@ -32,6 +35,8 @@ impl<T: Subscribable> WsClient<T> {
 		Ok(())
 	}
 
+    /// Receive loop for subscribed data. Will just continue to the next loop if an error
+    /// is received. Stops on a stop signal
 	fn receive_loop(
 		rpc_tx: crossbeam_channel::Sender<T::Output>,
 		rx: Receiver<T::Output>,

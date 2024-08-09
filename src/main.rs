@@ -20,12 +20,9 @@ async fn main() -> Result<()> {
 	let sol_ws_client = WsClient::<SlotsSubscription>::new(config.client.clone(), rpc_tx);
 
 	info!("Creating rpc_wm");
-	let mut rpc_wm = RpcWorkerManager::<SlotInfo>::new(
-		config.client,
-		rpc_rx,
-		proc_tx,
-		config.processor.worker_threads as usize,
-	);
+	let client_threads = config.client.worker_threads;
+	let mut rpc_wm =
+		RpcWorkerManager::<SlotInfo>::new(config.client, rpc_rx, proc_tx, client_threads as usize);
 
 	info!("Creating db_pool");
 	let db_pool = create_database_pool(&config.database).await?;

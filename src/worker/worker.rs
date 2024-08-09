@@ -6,6 +6,8 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
+/// Trait for worker managers, worker managers should have a vector field to hold `WorkerHandles`
+/// to ensure that workers can be shutdown
 pub trait WorkerManager {
 	fn spawn_worker(&mut self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>>;
 
@@ -18,6 +20,7 @@ pub trait Worker: Send + 'static {
 	fn run(self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'static>>;
 }
 
+/// Run is called in constructor to get join handle so toavoid uncessary fiddling with `Option` and `take()`
 pub struct WorkerHandle {
 	join_handle: JoinHandle<Result<()>>,
 	shutdown_tx: mpsc::Sender<()>,

@@ -10,6 +10,9 @@ use solana_transaction_status::{
 
 use log::{error, info};
 
+/// Processes the block into a vector or `Option<Aggregate>` from a UiConfirmedBlock.
+/// The transaction field of a `UiConfirmedBlock` is an `Option<EncodedTransactionWithStatusMeta>`
+/// thus the need for an `Option<Aggregate>` returns an error if the entire Vec is empty
 impl Processable for (SlotInfo, UiConfirmedBlock) {
 	type Output = Vec<Option<Aggregate>>;
 	fn process(&self) -> Result<Self::Output> {
@@ -42,6 +45,7 @@ impl Processable for (SlotInfo, UiConfirmedBlock) {
 			})
 			.collect();
 
+        // Error if completely empty
 		if transaction_data.is_empty() {
 			error!("No transaction data");
 			return Err(AppError::NoData);
@@ -52,6 +56,9 @@ impl Processable for (SlotInfo, UiConfirmedBlock) {
 	}
 }
 
+/// Decodes and retrieves transaction signature and associated accounts from an
+/// `EncodedTransactionWithStatusMeta` returns `Some<(String, Vec<String>)`, if 
+/// `EncodedTransactionWithStatusMeta` is not `None`
 fn get_accounts_from_transaction(
 	transaction: EncodedTransactionWithStatusMeta,
 ) -> Option<(String, Vec<String>)> {

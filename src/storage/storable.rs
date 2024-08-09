@@ -3,6 +3,7 @@ use crate::error::Result;
 use std::future::Future;
 use std::pin::Pin;
 
+/// Trait to ensure that StorageWorker is reusable for any type that can be stored
 pub trait Storable: Sized + Send {
 	fn store(
 		self,

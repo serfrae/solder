@@ -6,6 +6,8 @@ use crate::{
 };
 use std::{future::Future, pin::Pin};
 
+/// Takes a Vec<Option<Aggregate>> and structures it as a database transaction to store in the database. 
+/// Uses a transaction so that database is not written to in a loop which is slow.
 impl Storable for Vec<Option<Aggregate>> {
 	fn store(
 		self,

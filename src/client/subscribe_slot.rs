@@ -7,6 +7,8 @@ use solana_client::{
 	rpc_response::SlotInfo,
 };
 
+/// Retrieves the latest slot which in turn is used to retrieve the latest block
+/// Uses the solana pubsub client, which doesn't seem to require ping/pong.
 impl Subscribable for SlotsSubscription {
 	type Output = SlotInfo;
 
