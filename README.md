@@ -1,5 +1,7 @@
 # Solder - Solana Data Aggregator
 
+NOTE: This is a toy project, and may or may not be extended.
+
 ## Setup
 ### Requirements
 1. Postgres

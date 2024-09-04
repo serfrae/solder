@@ -1,0 +1,23 @@
+[database]
+user = 
+password = 
+port = 
+host = 
+pool_size = 
+db_name =
+
+[client]
+url =
+api_key = 
+worker_threads = 
+
+[processor]
+worker_threads = 
+
+[storage]
+worker_threads =
+
+[server]
+host = 
+port =
+

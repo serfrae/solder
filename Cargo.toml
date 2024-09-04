@@ -14,9 +14,11 @@ chrono = "0.4.38"
 crossbeam = "0.8.4"
 crossbeam-channel = "0.5.13"
 dotenv = "0.15.0"
+futures = "0.3.30"
 itertools = "0.13.0"
 log = "0.4.22"
 pretty_env_logger = "0.5.0"
+rand = "0.8.5"
 serde = { version = "1.0.204", features = ["derive"] }
 serde_json = "1.0.120"
 serde_toml = "0.0.1"
@@ -28,7 +30,8 @@ thiserror = "1.0.63"
 tokio = { version = "1.39.1", features = ["full"] }
 tokio-postgres = "0.7.11"
 toml = "0.8.16"
-tower-http = { version = "0.5.2", features = ["cors"] }
+tower = { version = "0.4.13", features = ["limit", "buffer", "timeout", "load-shed" ] }
+tower-http = { version = "0.5.2", features = ["cors", "trace"] }
 
 [lib]
 name = "solder"
@@ -37,3 +40,6 @@ path = "src/lib.rs"
 [[bin]]
 name = "solder"
 path = "src/main.rs"
+
+[dev-dependencies]
+mockall = "0.13.0"
