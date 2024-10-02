@@ -1,6 +1,7 @@
 # Solder - Solana Data Aggregator
 
 NOTE: This is a toy project, and may or may not be extended.
+TODO: Error handling  
 
 ## Setup
 ### Requirements
